@@ -19,6 +19,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.HashSet;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>();
@@ -52,7 +55,7 @@ public class MainActivity extends Activity {
         LinearLayout sendRow=new LinearLayout(this);Button send=btn("➤  Отправить"),clear=btn("Очистить");send.setTextSize(16);sendRow.addView(send,new LinearLayout.LayoutParams(0,dp(52),1));sendRow.addView(clear,new LinearLayout.LayoutParams(0,dp(52),1));chat.addView(sendRow);send.setOnClickListener(v->sendToAgent());clear.setOnClickListener(v->chatInput.setText(""));
         chat.addView(tv("Общий контекст: "+contextLog.size()+" записей",13));
         chat.addView(tv("Контрольный эксперимент v0.9",16));
-        Button t=btn("🔥 Запустить: конфликт → подтверждение → обучение");chat.addView(t);t.setOnClickListener(v->runLearningExperiment());
+        Button t=btn("🔥 Запустить: конфликт → подтверждение → обучение");chat.addView(t);t.setOnClickListener(v->runLearningExperiment());\n        Button webLearn=btn("🌱 Учить из интернета (ИИ-учитель)");chat.addView(webLearn);webLearn.setOnClickListener(v->runWebTeacher());
     }
     void runLearningExperiment(){
         store.snapshot();
@@ -84,6 +87,22 @@ public class MainActivity extends Activity {
         a.append("\n\nПравило: генератор не участвует в этом цикле.");
         addBubble("Агент",a.toString());chatInput.setText("");
     }
+    void runWebTeacher(){
+        String key=getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key","");
+        if(key.trim().isEmpty()){ toast("Сначала добавь OpenAI API key в ⚙ Настройки."); return; }
+        String id=store.firstLearningTarget();
+        if(id.isEmpty()){ addBubble("ИИ-учитель","Нет CANDIDATE/CONFLICT для исследования. Дай агенту новое проверяемое утверждение."); return; }
+        String target=store.researchTarget(id);
+        addBubble("ИИ-учитель","Исследую в интернете:\n"+target+"\n\nИщу несколько независимых источников...");
+        new Thread(()->{
+            try{
+                OpenAIWebTeacher.Result rr=OpenAIWebTeacher.research(key,target,store);
+                String saved=store.recordWebEvidence(id,rr.report,rr.urls);
+                runOnUiThread(()->addBubble("ИИ-учитель","Результат исследования:\n"+rr.report+"\n\n🌐 Источников: "+rr.urls.length+"\n🧠 "+saved));
+            }catch(Exception e){ runOnUiThread(()->addBubble("ИИ-учитель","⚠️ Веб-исследование не выполнено: "+e.getMessage())); }
+        }).start();
+    }
+
     void addBubble(String who,String text){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(10),dp(8),dp(10),dp(8));TextView h=tv(who,12);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);h.setTextColor(Color.rgb(30,90,120));row.addView(h);TextView b=tv(text,15);b.setBackground(bg(who.equals("Ты")?Color.rgb(232,242,250):Color.rgb(242,242,242),18));row.addView(b);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(5),0,dp(5));chat.addView(row,lp);}
     String memoryAnswer(String q){
         String nq=q.toLowerCase();List<MemoryStore.Item> items=store.all();StringBuilder s=new StringBuilder();int hits=0,active=0,candidate=0;
@@ -132,6 +151,11 @@ public class MainActivity extends Activity {
     }
     void showSettings(){
         content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.0: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
+        content.addView(tv("🤖 Подключение ИИ-учителя",17));
+        content.addView(tv("ИИ-учитель использует OpenAI Responses API и веб-поиск, чтобы находить внешние свидетельства. Результат не считается независимым источником сам по себе; приложение извлекает домены найденных источников и использует их как отдельные свидетельства.",12));
+        EditText apiKey=new EditText(this);apiKey.setHint("OpenAI API key (sk-...)");apiKey.setSingleLine(true);apiKey.setInputType(129);apiKey.setText(getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key",""));content.addView(apiKey);
+        Button saveKey=btn("Сохранить API key");content.addView(saveKey);saveKey.setOnClickListener(v->{getSharedPreferences("vector_settings",MODE_PRIVATE).edit().putString("openai_key",apiKey.getText().toString().trim()).apply();toast("API key сохранён на устройстве");});
+        
         addSetting("Автоактивация","Если включена, новое наблюдение получает ACTIVE при достаточной уверенности и отсутствии конфликта.",autoSwitch());
         content.addView(tv("Порог уверенности",17));content.addView(tv("Это порог состояния, а не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});
         addAction("Snapshot","Сохраняет память и гипотезы перед экспериментом.","Сделать Snapshot",v->{store.snapshot();toast("Snapshot сохранён");});addAction("🧪 Лаборатория","Режим воспроизводимых экспериментов с журналом BEFORE/AFTER и сигналом обучения.","Открыть лабораторию",v->startActivity(new Intent(this,LabActivity.class)));addAction("Rollback","Возвращает последний Snapshot.","Выполнить Rollback",v->toast(store.rollback()?"Rollback выполнен":"Snapshot отсутствует"));
