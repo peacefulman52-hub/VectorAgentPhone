@@ -22,10 +22,10 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-0.9.0-apk
+          name: VectorAgentPhone-0.9.1-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v0.9.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v0.9.0" --notes "Experimental learning loop: compare new observations with memory, track conflicts/similarity, resolve conflicts through user confirmation, create an active resolution hypothesis, and keep generator output outside MemoryStore." || true
+          gh release create v0.9.1 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v0.9.1" --notes "Adds ExperimentBridge and Laboratory UI with BEFORE/AFTER state snapshots, experiment journal, and reproducible learning-signal tests." || true
