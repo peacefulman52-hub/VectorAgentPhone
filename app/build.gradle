@@ -4,10 +4,10 @@ android {
     namespace 'com.vectoragent.phone'
     compileSdk 35
     defaultConfig {
-        applicationId 'com.vectoragent.phone.v07'
+        applicationId 'com.vectoragent.phone.v08'
         minSdk 26
         targetSdk 35
-        versionCode 70
-        versionName '0.7.0'
+        versionCode 80
+        versionName '0.8.0'
     }
 }
