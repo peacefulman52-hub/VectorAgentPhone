@@ -13,9 +13,14 @@ import android.widget.*;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 public class MainActivity extends Activity {
     MemoryStore store; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
+    void clearContent(){ if(content!=null) content.removeAllViews(); }
     int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
     TextView tv(String s,float size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(Color.rgb(35,35,40));t.setPadding(dp(10),dp(8),dp(10),dp(8));return t;}
     Button btn(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
@@ -27,11 +32,11 @@ public class MainActivity extends Activity {
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v0.7 • память • гипотезы • обучение",12));
+        root.addView(tv("v0.8 • память • гипотезы • обучение • источники",12));
         LinearLayout modes=new LinearLayout(this);modes.setGravity(Gravity.CENTER);
-        Button chatMode=btn("💬 Чат"),memMode=btn("🧠 Память"),setMode=btn("⚙ Настройки");
-        modes.addView(chatMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(memMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(setMode,new LinearLayout.LayoutParams(0,dp(48),1));root.addView(modes);
-        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());setMode.setOnClickListener(v->showSettings());
+        Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор"),setMode=btn("⚙");
+        modes.addView(chatMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(memMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(srcMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(genMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(setMode,new LinearLayout.LayoutParams(0,dp(48),1));root.addView(modes);
+        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());
         View line=new View(this);line.setBackgroundColor(Color.LTGRAY);root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
     }
@@ -39,7 +44,7 @@ public class MainActivity extends Activity {
         content.removeAllViews();chat=new LinearLayout(this);chat.setOrientation(LinearLayout.VERTICAL);content.addView(chat);
         TextView intro=tv("Локальный агент",18);intro.setTypeface(Typeface.DEFAULT,Typeface.BOLD);chat.addView(intro);
         chat.addView(tv("Пиши как в мессенджере. Агент сохраняет наблюдения, сравнивает их с памятью, ищет конфликты и повторяющиеся структуры.",13));
-        addBubble("Агент","Готов. Дай мне факт, наблюдение или серию примеров.");
+        addBubble("Агент","Я отвечаю только по собственной локальной памяти. Если данных недостаточно — скажу об этом прямо.");
         chatInput=new EditText(this);chatInput.setHint("Сообщение…");chatInput.setMinLines(2);chatInput.setGravity(48);chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this);Button send=btn("➤  Отправить"),clear=btn("Очистить");send.setTextSize(16);sendRow.addView(send,new LinearLayout.LayoutParams(0,dp(52),1));sendRow.addView(clear,new LinearLayout.LayoutParams(0,dp(52),1));chat.addView(sendRow);
         send.setOnClickListener(v->sendToAgent());clear.setOnClickListener(v->chatInput.setText(""));
@@ -47,15 +52,66 @@ public class MainActivity extends Activity {
     }
     void sendToAgent(){
         String raw=chatInput.getText().toString().trim();if(raw.isEmpty())return;addBubble("Ты",raw);
-        MemoryStore.IngestResult r=store.ingest(raw,.70);StringBuilder a=new StringBuilder("Принял: "+r.added+" утверждений.");
+        MemoryStore.IngestResult r=store.ingest(raw,.70);StringBuilder a=new StringBuilder(memoryAnswer(raw));
         if(r.conflicts>0){a.append("\nОбнаружено конфликтов: "+r.conflicts);for(String m:r.messages)a.append("\n• ").append(m);}else a.append("\nПротиворечий с текущей памятью не обнаружено.");
-        a.append("\n\nОткрой «Память», чтобы увидеть статус и обратную связь.");addBubble("Агент",a.toString());chatInput.setText("");
+        a.append("\n\nФакт сохранён только если он прошёл локальную обработку. Состояния смотри в «Память».");addBubble("Агент",a.toString());chatInput.setText("");
     }
     void addBubble(String who,String text){
         LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(10),dp(8),dp(10),dp(8));
         TextView h=tv(who,12);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);h.setTextColor(Color.rgb(30,90,120));row.addView(h);
         TextView b=tv(text,15);b.setBackground(bg(who.equals("Ты")?Color.rgb(232,242,250):Color.rgb(242,242,242),18));row.addView(b);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(5),0,dp(5));chat.addView(row,lp);
+    }
+    String memoryAnswer(String q){
+        String nq=q.toLowerCase();
+        List<MemoryStore.Item> items=store.all(); StringBuilder s=new StringBuilder();
+        int hits=0;
+        for(MemoryStore.Item x:items){
+            String[] words=nq.replaceAll("[^\\p{L}\\p{Nd} ]"," ").split("\\s+");
+            int score=0; for(String w:words) if(w.length()>2 && x.text.toLowerCase().contains(w)) score++;
+            if(score>0){if(hits==0)s.append("По моей памяти:\\n"); s.append("• ").append(x.text).append(" [").append(x.status).append(", ").append(Math.round(x.confidence*100)).append("%]\\n");hits++;}
+        }
+        if(hits==0) s.append("В моей накопленной базе нет достаточно близких фактов, чтобы ответить по существу. Я не буду додумывать ответ.");
+        else s.append("\\nОснование ответа: ").append(hits).append(" совпавших записей локальной памяти.");
+        return s.toString();
+    }
+    void showSources(){
+        content.removeAllViews(); content.addView(tv("🌐 Источники",20));
+        content.addView(tv("Вставь HTTPS-ссылку. Приложение скачает доступный текст страницы, разобьёт его на утверждения и передаст их в локальную память. Внешний текст не становится автоматически истиной.",13));
+        EditText url=new EditText(this);url.setHint("https://example.com/article");content.addView(url);
+        EditText preview=new EditText(this);preview.setHint("Текст страницы / результат…");preview.setMinLines(8);preview.setGravity(48);content.addView(preview);
+        Button load=btn("↓ Загрузить источник");content.addView(load);
+        TextView result=tv("",13);content.addView(result);
+        load.setOnClickListener(v->{
+            String u=url.getText().toString().trim();
+            if(!u.startsWith("https://")){result.setText("Нужна HTTPS-ссылка.");return;}
+            result.setText("Загружаю…");
+            new Thread(()->{
+                try{
+                    HttpURLConnection c=(HttpURLConnection)new URL(u).openConnection(); c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setRequestProperty("User-Agent","VectorAgentPhone/0.8");c.setInstanceFollowRedirects(true);
+                    BufferedReader br=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8));StringBuilder raw=new StringBuilder();String line;int chars=0;
+                    while((line=br.readLine())!=null && chars<200000){raw.append(line).append("\\n");chars+=line.length();}
+                    br.close();String text=raw.toString().replaceAll("<script[\\s\\S]*?</script>"," ").replaceAll("<style[\\s\\S]*?</style>"," ").replaceAll("<[^>]+>"," ").replaceAll("&nbsp;"," ").replaceAll("\\s+"," ").trim();
+                    MemoryStore.IngestResult ir=store.ingest(text,.55);
+                    runOnUiThread(()->{preview.setText(text.substring(0,Math.min(text.length(),12000)));result.setText("Источник обработан: добавлено "+ir.added+", конфликтов "+ir.conflicts+", пропущено "+ir.ignored+".");});
+                }catch(Exception e){runOnUiThread(()->result.setText("Не удалось загрузить источник: "+e.getClass().getSimpleName()));}
+            }).start();
+        });
+    }
+    void showGenerator(){
+        content.removeAllViews();content.addView(tv("✨ Генератор красивого текста",20));
+        content.addView(tv("Это отдельная песочница. Её ответы НЕ считаются знаниями агента и НЕ записываются в память.",13));
+        EditText topic=new EditText(this);topic.setHint("Тема / идея / настроение");topic.setMinLines(2);content.addView(topic);
+        Spinner style=new Spinner(this);String[] styles={"Мини-эссе","Лирический текст","Научно-фантастический фрагмент","Притча","Пост"};style.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,styles));content.addView(style);
+        Button go=btn("✨ Сгенерировать");content.addView(go);TextView out=tv("",15);out.setBackground(bg(Color.rgb(247,247,247),16));content.addView(out);
+        go.setOnClickListener(v->{String t=topic.getText().toString().trim();if(t.isEmpty())return;out.setText(generatePretty(t,style.getSelectedItem().toString()));});
+    }
+    String generatePretty(String topic,String style){
+        if(style.equals("Лирический текст")) return "Иногда "+topic+" начинается не с ответа, а с вопроса.\\n\\nМы смотрим на привычное и вдруг замечаем в нём неизвестное. И тогда маленькая мысль становится дверью: за ней уже не готовая истина, а пространство, где можно наблюдать, сомневаться и пробовать снова.\\n\\nПусть эта история останется открытой — именно поэтому она интересна.";
+        if(style.equals("Притча")) return "Однажды человек спросил: «Что важнее — знать ответ или уметь его искать?»\\n\\nЕму ответили: «Если ты знаешь только один ответ, ты знаешь прошлое. Если умеешь проверять — ты умеешь встречать новое».\\n\\nТак "+topic+" перестало быть вещью и стало вопросом.";
+        if(style.equals("Научно-фантастический фрагмент")) return "В журнале эксперимента появилась новая строка: «"+topic+"».\\n\\nСистема сравнила её с накопленными наблюдениями. Совпадений было мало. Поэтому она не стала придумывать вывод. Она пометила неизвестное как неизвестное — и оставила место для следующего наблюдения.\\n\\nИменно в этот момент эксперимент стал интереснее результата.";
+        if(style.equals("Пост")) return "Есть темы, которые нельзя понять одним красивым ответом. "+topic+" — одна из них. Поэтому вместо уверенного вывода лучше собрать наблюдения, сравнить их, сохранить противоречия и посмотреть, какая закономерность выдержит проверку. Иногда именно так начинается настоящее исследование.";
+        return "«"+topic+"» — это повод остановиться на минуту и посмотреть внимательнее.\\n\\nУ каждой идеи есть поверхность — то, что видно сразу. Но под ней находятся связи, исключения, вопросы и неожиданные последствия. Красивый текст может создать впечатление завершённости; настоящее исследование, наоборот, оставляет пространство для следующего шага.\\n\\nПоэтому пусть "+topic+" будет не точкой, а началом.";
     }
     void showMemory(){
         content.removeAllViews();content.addView(tv("🧠 Память и лаборатория",20));stats=tv("",13);stats.setBackground(bg(Color.rgb(245,247,249),14));content.addView(stats);
@@ -83,7 +139,7 @@ public class MainActivity extends Activity {
         content.addView(tv("Порог уверенности",17));content.addView(tv("Минимальная уверенность для автоматического ACTIVE. Это не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});
         addAction("Snapshot","Сохраняет текущее состояние памяти и гипотез перед экспериментом.","Сделать Snapshot",v->{store.snapshot();toast("Snapshot сохранён");});addAction("Rollback","Возвращает последний Snapshot после неудачного эксперимента.","Выполнить Rollback",v->toast(store.rollback()?"Rollback выполнен":"Snapshot отсутствует"));
         content.addView(tv("Export / Import",17));content.addView(tv("Export выгружает память в JSON. Import загружает JSON обратно — это внешний слой продолжения эксперимента.",12));LinearLayout io=new LinearLayout(this);Button ex=btn("Export JSON"),im=btn("Import JSON");io.addView(ex,new LinearLayout.LayoutParams(0,-2,1));io.addView(im,new LinearLayout.LayoutParams(0,-2,1));content.addView(io);ex.setOnClickListener(v->exportFile());im.setOnClickListener(v->importFile());
-        content.addView(tv("Как работает обучение",17));content.addView(tv("1) наблюдение → 2) фиксация → 3) сравнение → 4) конфликт/сходство → 5) кандидат-гипотеза → 6) подтверждение/отклонение → 7) изменение состояния.",13));content.addView(tv("Научный следующий шаг",17));content.addView(tv("v0.7 хранит ACTIVE-гипотезы, но ещё не использует их как полноценный прогноз. Следующая версия может применять принятую закономерность к новому наблюдению и измерять ошибки.",13));
+        content.addView(tv("Как работает обучение",17));content.addView(tv("1) наблюдение → 2) фиксация → 3) сравнение → 4) конфликт/сходство → 5) кандидат-гипотеза → 6) подтверждение/отклонение → 7) изменение состояния.",13));content.addView(tv("Научный следующий шаг",17));content.addView(tv("v0.8 отделяет память от генератора. ACTIVE больше не должен появляться просто из-за добавления независимого факта. Следующий этап — применять подтверждённые гипотезы к новым наблюдениям и измерять ошибки.",13));
     }
     void addSetting(String title,String desc,View control){content.addView(tv(title,17));content.addView(tv(desc,12));content.addView(control);}
     void addAction(String title,String desc,String label,View.OnClickListener l){content.addView(tv(title,17));content.addView(tv(desc,12));Button b=btn(label);content.addView(b);b.setOnClickListener(l);}
