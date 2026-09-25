@@ -39,14 +39,14 @@ public class MemoryStore {
         String x=norm(a),y=norm(b);
         if(has(x,"недоступен","недоступна","не работал","не работает","выключен","выключена")&&has(y,"доступен","доступна","работал без","работает","включен","включена"))return true;
         if(has(y,"недоступен","недоступна","не работал","не работает","выключен","выключена")&&has(x,"доступен","доступна","работал без","работает","включен","включена"))return true;
-        String nx=x.replaceAll("\bне\s+","").replaceAll("[.,!?;:]$","").trim(),ny=y.replaceAll("\bне\s+","").replaceAll("[.,!?;:]$","").trim();
+        String nx=x.replace("не ","").replaceAll("[.,!?;:]$","").trim(),ny=y.replace("не ","").replaceAll("[.,!?;:]$","").trim();
         if(!nx.equals(x)&&nx.equals(y.replaceAll("[.,!?;:]$","").trim()))return true;
         if(!ny.equals(y)&&ny.equals(x.replaceAll("[.,!?;:]$","").trim()))return true;
         if((has(x,"есть ","имеется ","существует ")&&has(y,"нет ","отсутствует ","не существует "))||(has(y,"есть ","имеется ","существует ")&&has(x,"нет ","отсутствует ","не существует ")))return true;
         if((x.contains("кипит")&&y.contains("не кипит"))||(y.contains("кипит")&&x.contains("не кипит")))return true;
         return false;
     }
-    private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^\\p{L}\\p{Nd} ]"," ").split("\\s+");String[] y=norm(b).replaceAll("[^\p{L}\p{Nd} ]"," ").split("\s+");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
+    private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");String[] y=norm(b).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
     private void addHistory(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
