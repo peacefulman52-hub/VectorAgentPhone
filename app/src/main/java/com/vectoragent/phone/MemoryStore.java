@@ -19,8 +19,12 @@ public class MemoryStore {
         public String id,text,status,source,relation,provenance,version; public double confidence; public long created,updated;
         Item(String id,String text,String status,String source,String relation,String provenance,String version,double confidence,long created,long updated){this.id=id;this.text=text;this.status=status;this.source=source;this.relation=relation;this.provenance=provenance;this.version=version;this.confidence=confidence;this.created=created;this.updated=updated;}
     }
+    public static class Hypothesis {
+        public String id,rule,evidence,status,version; public int support;
+        Hypothesis(String id,String rule,String evidence,String status,String version,int support){this.id=id;this.rule=rule;this.evidence=evidence;this.status=status;this.version=version;this.support=support;}
+    }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0; public final List<String> messages=new ArrayList<>(); }
-    private static final String PREF="vector_memory",KEY="items"; private final SharedPreferences p;
+    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses"; private final SharedPreferences p;
     public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();}
     private boolean ensureKey(){try{KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(ks.containsAlias("VectorAgentKey"))return true;try{KeyGenerator kg=KeyGenerator.getInstance("AES","AndroidKeyStore");kg.init(256);kg.generateKey();return true;}catch(Exception ignored){}KeyGenerator kg=KeyGenerator.getInstance("AES","AndroidKeyStore");kg.init(128);kg.generateKey();return true;}catch(Exception ignored){return false;}}
     private String enc(String s){try{if(!ensureKey())return "PLAIN:"+Base64.encodeToString(s.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey k=((KeyStore.SecretKeyEntry)ks.getEntry("VectorAgentKey",null)).getSecretKey();Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,k);byte[] iv=c.getIV(),data=c.doFinal(s.getBytes(StandardCharsets.UTF_8));byte[] out=new byte[iv.length+data.length];System.arraycopy(iv,0,out,0,iv.length);System.arraycopy(data,0,out,iv.length,data.length);return Base64.encodeToString(out,Base64.NO_WRAP);}catch(Exception e){throw new RuntimeException(e);}}
@@ -46,7 +50,7 @@ public class MemoryStore {
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
         try{JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(!oldText.isEmpty()&&contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation","CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;}}
-            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);
+            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();
         }catch(Exception ignored){}return conflictWith;
     }
     public IngestResult ingest(String raw,double conf){
@@ -60,9 +64,17 @@ public class MemoryStore {
     public double threshold(){return Double.longBitsToDouble(p.getLong("thresholdBits",Double.doubleToLongBits(.70)));}
     public void setThreshold(double v){p.edit().putLong("thresholdBits",Double.doubleToLongBits(v)).apply();}
     public boolean auto(){return p.getBoolean("auto",true);} public void setAuto(boolean v){p.edit().putBoolean("auto",v).apply();}
-    public String exportJson(){return read().toString();} public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
-    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).apply();}
-    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).apply();return true;}
+    public List<Hypothesis> hypotheses(){List<Hypothesis> r=new ArrayList<>();try{JSONArray a=new JSONArray(p.getString(HKEY,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);r.add(new Hypothesis(o.optString("id"),o.optString("rule"),o.optString("evidence"),o.optString("status","CANDIDATE"),o.optString("version","1"),o.optInt("support")));}}catch(Exception ignored){}return r;}
+    private JSONArray readHyp(){try{return new JSONArray(p.getString(HKEY,"[]"));}catch(Exception e){return new JSONArray();}}
+    private void writeHyp(JSONArray a){p.edit().putString(HKEY,a.toString()).apply();}
+    public void learnHypothesis(String id,boolean accepted){JSONArray a=readHyp();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){o.put("status",accepted?"ACTIVE":"REJECTED");o.put("version",Integer.toString(o.optInt("version",1)+1));o.put("learningSignal",accepted?"USER_CONFIRMED":"USER_REJECTED");o.put("updated",System.currentTimeMillis());break;}}catch(Exception ignored){}writeHyp(a);}
+    public int discoverHypotheses(){List<Item> items=all();java.util.HashMap<String,java.util.HashMap<String,java.util.HashSet<String>>> groups=new java.util.HashMap<>();
+        for(int i=0;i<items.size();i++)for(int j=i+1;j<items.size();j++){String[] a=norm(items.get(i).text).split(" "),b=norm(items.get(j).text).split(" ");if(a.length!=b.length||a.length<2)continue;int diff=-1,n=0;for(int k=0;k<a.length;k++)if(!a[k].equals(b[k])){diff=k;n++;}if(n!=1)continue;String key="POS"+diff+"|"+signature(a,diff);java.util.HashMap<String,java.util.HashSet<String>> m=groups.get(key);if(m==null){m=new java.util.HashMap<>();groups.put(key,m);}String pair=a[diff]+" ↔ "+b[diff];m.computeIfAbsent("PAIR",z->new java.util.HashSet<>()).add(pair);}
+        JSONArray h=readHyp();int created=0;for(String key:groups.keySet()){java.util.HashSet<String> pairs=groups.get(key).get("PAIR");if(pairs==null||pairs.size()<2)continue;String rule="повторяющееся противопоставление в шаблоне "+key.substring(key.indexOf("|")+1)+": "+pairs;String hid="h-"+Integer.toHexString(rule.hashCode());boolean exists=false;for(int i=0;i<h.length();i++)if(h.optJSONObject(i)!=null&&hid.equals(h.optJSONObject(i).optString("id"))){exists=true;break;}if(!exists){try{JSONObject o=new JSONObject();o.put("id",hid);o.put("rule",rule);o.put("evidence",pairs.toString());o.put("support",pairs.size());o.put("status","CANDIDATE");o.put("version","1");o.put("created",System.currentTimeMillis());h.put(o);created++;}catch(Exception ignored){}}}if(created>0)writeHyp(h);return created;}
+    private String signature(String[] a,int diff){StringBuilder s=new StringBuilder();for(int i=0;i<a.length;i++)if(i!=diff)s.append(a[i]).append(" ");return s.toString().trim();}
+    public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString();} public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
+    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).apply();}
+    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();return true;}
     public void saveApiKey(String key){if(key==null)key="";p.edit().putString("apiKey",enc(key)).apply();} public boolean hasApiKey(){return !p.getString("apiKey","").isEmpty();}
     public int count(String status){int n=0;for(Item x:all())if(x.status.equals(status))n++;return n;}
 }
