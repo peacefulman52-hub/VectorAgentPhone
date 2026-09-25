@@ -33,11 +33,45 @@ public class MemoryStore {
     private void write(JSONArray a){p.edit().putString(KEY,enc(a.toString())).apply();}
     public List<Item> all(){List<Item> r=new ArrayList<>();JSONArray a=read();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);r.add(item(o));}catch(Exception ignored){}return r;}
     private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
-    private String norm(String s){return s.toLowerCase().replace("не ","").replace("  "," ").trim();}
-    private String conflictId(JSONArray a,String text){String n=norm(text);for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o==null)continue;String old=o.optString("text");if(!old.isEmpty()&&!old.equalsIgnoreCase(text)&&norm(old).equals(n))return o.optString("id");}return "";}
+    private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
+    private boolean has(String s,String... xs){for(String x:xs)if(s.contains(x))return true;return false;}
+    private boolean contradicts(String a,String b){
+        String x=norm(a),y=norm(b);
+        if(has(x,"недоступен","недоступна","не работал","не работает","не работает","выключен","выключена") &&
+           has(y,"доступен","доступна","работал без","работает","включен","включена")) return true;
+        if(has(y,"недоступен","недоступна","не работал","не работает","выключен","выключена") &&
+           has(x,"доступен","доступна","работал без","работает","включен","включена")) return true;
+        if((x.contains("не ") && !y.contains("не ")) || (y.contains("не ") && !x.contains("не "))){
+            String px=x.replace("не ","").trim(), py=y.replace("не ","").trim();
+            if(px.equals(py)) return true;
+        }
+        if((has(x,"есть ","имеется ","существует ") && has(y,"нет ","отсутствует ","не существует ")) ||
+           (has(y,"есть ","имеется ","существует ") && has(x,"нет ","отсутствует ","не существует "))) return true;
+        return false;
+    }
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
-        JSONArray a=read();String id="m-"+System.currentTimeMillis();String conflict=conflictId(a,text);long now=System.currentTimeMillis();
-        try{JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("status",conflict.isEmpty()?(auto&&conf>=threshold()?"ACTIVE":"CANDIDATE"):"CONFLICT");o.put("conflictWith",conflict);o.put("history",new JSONArray());a.put(o);write(a);}catch(Exception ignored){}return conflict;}
+        JSONArray a=read();String id="m-"+System.currentTimeMillis();long now=System.currentTimeMillis();String conflictWith="";
+        try{
+            JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());
+            for(int i=0;i<a.length();i++){
+                JSONObject old=a.optJSONObject(i); if(old==null)continue;
+                String oldText=old.optString("text");
+                if(!oldText.isEmpty() && contradicts(text,oldText)){
+                    conflictWith=old.optString("id");
+                    o.put("status","CONFLICT");
+                    o.put("relation","CONTRADICTS "+conflictWith);
+                    old.put("status","CONFLICT");
+                    String oldRel=old.optString("relation");
+                    old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);
+                    old.put("updated",now);
+                    break;
+                }
+            }
+            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");
+            o.put("conflictWith",conflictWith);a.put(o);write(a);
+        }catch(Exception ignored){}
+        return conflictWith;
+    }
     public void setStatus(String id,String status){JSONArray a=read();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){history(o);o.put("status",status);o.put("updated",System.currentTimeMillis());o.put("version",Integer.toString(o.optInt("version",1)+1));break;}}catch(Exception ignored){}write(a);}
     private void history(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     public double threshold(){return Double.longBitsToDouble(p.getLong("thresholdBits",Double.doubleToLongBits(.70)));}
