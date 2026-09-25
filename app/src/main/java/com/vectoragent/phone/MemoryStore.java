@@ -31,6 +31,62 @@ public class MemoryStore {
     private String dec(String s){try{if(s.startsWith("PLAIN:"))return new String(Base64.decode(s.substring(6),Base64.NO_WRAP),StandardCharsets.UTF_8);byte[] all=Base64.decode(s,Base64.NO_WRAP);byte[] iv=new byte[12],data=new byte[all.length-12];System.arraycopy(all,0,iv,0,12);System.arraycopy(all,12,data,0,data.length);KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey k=((KeyStore.SecretKeyEntry)ks.getEntry("VectorAgentKey",null)).getSecretKey();Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,k,new GCMParameterSpec(128,iv));return new String(c.doFinal(data),StandardCharsets.UTF_8);}catch(Exception e){return s;}}
     private JSONArray read(){try{return new JSONArray(dec(p.getString(KEY,"[]")));}catch(Exception e){return new JSONArray();}}
     private void write(JSONArray a){p.edit().putString(KEY,enc(a.toString())).apply();}
+    public String firstLearningTarget(){
+        JSONArray a=read();
+        try{
+            for(int i=0;i<a.length();i++){
+                JSONObject o=a.getJSONObject(i);
+                String st=o.optString("status");
+                if("CANDIDATE".equals(st)||"CONFLICT".equals(st)) return o.optString("id");
+            }
+        }catch(Exception ignored){}
+        return "";
+    }
+    public String researchTarget(String id){
+        JSONArray a=read();
+        try{
+            for(int i=0;i<a.length();i++){ JSONObject o=a.getJSONObject(i); if(id.equals(o.optString("id"))) return o.optString("text"); }
+        }catch(Exception ignored){}
+        return "";
+    }
+    public String recordWebEvidence(String targetId,String report,String[] urls){
+        JSONArray a=read(); String result="";
+        try{
+            for(int i=0;i<a.length();i++){
+                JSONObject o=a.getJSONObject(i);
+                if(!targetId.equals(o.optString("id"))) continue;
+                JSONArray src=o.optJSONArray("independentSources");
+                if(src==null) src=new JSONArray();
+                java.util.HashSet<String> domains=new java.util.HashSet<>();
+                for(int j=0;j<src.length();j++) domains.add(src.optString(j));
+                for(String u:urls){
+                    try{
+                        String d=new java.net.URL(u).getHost().toLowerCase();
+                        if(d.startsWith("www.")) d=d.substring(4);
+                        if(!d.isEmpty()) domains.add(d);
+                    }catch(Exception ignored){}
+                }
+                src=new JSONArray(); for(String d:domains) src.put(d); o.put("independentSources",src);
+                o.put("webResearch",report);
+                o.put("webEvidenceCount",domains.size());
+                addHistory(o); o.put("updated",System.currentTimeMillis());
+                if(domains.size()>=2 && "CANDIDATE".equals(o.optString("status"))){
+                    o.put("status","ACTIVE");
+                    o.put("learningState","AUTO_CONFIRMED_BY_INDEPENDENT_WEB_SOURCES");
+                    o.put("learningSignal","TWO_OR_MORE_DISTINCT_SOURCE_DOMAINS");
+                    o.put("support",Math.max(o.optInt("support",1),domains.size()));
+                    result="ACTIVE: найдено "+domains.size()+" независимых доменов.";
+                } else if("CONFLICT".equals(o.optString("status"))){
+                    result="CONFLICT: источники собраны, но конфликт автоматически не разрешён.";
+                } else {
+                    result="Собрано источников: "+domains.size()+"; нужны дополнительные независимые домены.";
+                }
+                break;
+            }
+        }catch(Exception ignored){ return "Ошибка записи веб-свидетельства."; }
+        write(a); return result;
+    }
+
     public List<Item> all(){List<Item> r=new ArrayList<>();JSONArray a=read();for(int i=0;i<a.length();i++)try{r.add(item(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optInt("support",1),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
     private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
