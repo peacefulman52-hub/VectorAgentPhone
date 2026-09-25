@@ -16,8 +16,8 @@ import javax.crypto.spec.GCMParameterSpec;
 
 public class MemoryStore {
     public static class Item {
-        public String id,text,status,source,relation,provenance,version; public double confidence; public long created,updated;
-        Item(String id,String text,String status,String source,String relation,String provenance,String version,double confidence,long created,long updated){this.id=id;this.text=text;this.status=status;this.source=source;this.relation=relation;this.provenance=provenance;this.version=version;this.confidence=confidence;this.created=created;this.updated=updated;}
+        public String id,text,status,source,relation,provenance,version; public double confidence; public int support; public long created,updated;
+        Item(String id,String text,String status,String source,String relation,String provenance,String version,double confidence,int support,long created,long updated){this.id=id;this.text=text;this.status=status;this.source=source;this.relation=relation;this.provenance=provenance;this.version=version;this.confidence=confidence;this.support=support;this.created=created;this.updated=updated;}
     }
     public static class Hypothesis {
         public String id,rule,evidence,status,version; public int support;
@@ -32,7 +32,7 @@ public class MemoryStore {
     private JSONArray read(){try{return new JSONArray(dec(p.getString(KEY,"[]")));}catch(Exception e){return new JSONArray();}}
     private void write(JSONArray a){p.edit().putString(KEY,enc(a.toString())).apply();}
     public List<Item> all(){List<Item> r=new ArrayList<>();JSONArray a=read();for(int i=0;i<a.length();i++)try{r.add(item(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
-    private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
+    private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optInt("support",1),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
     private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
     private boolean has(String s,String... xs){for(String x:xs)if(s.contains(x))return true;return false;}
     private boolean contradicts(String a,String b){
@@ -51,7 +51,7 @@ public class MemoryStore {
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
         try{
-            JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");
+            JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
                 if(contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;}
             }
@@ -61,13 +61,26 @@ public class MemoryStore {
     public IngestResult ingest(String raw,double conf){
         IngestResult r=new IngestResult();String[] parts=raw.split("[\n.!?;]+");
         for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}
-            List<Item> before=all();boolean sim=false;for(Item x:before)if(!"REJECTED".equals(x.status)&&similarity(s,x.text)>=0.55){sim=true;break;}
+            List<Item> before=all();boolean sim=false;String bestId="";double bestScore=0;for(Item x:before)if(!"REJECTED".equals(x.status)){double sc=similarity(s,x.text);if(sc>=0.55){sim=true;if(sc>bestScore){bestScore=sc;bestId=x.id;}}}
             String c=add(s,conf,auto(), "CHAT","user message → local claim extraction","auto-ingested");r.added++;if(sim)r.similar++;
             if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");r.learning.add("Система изменила состояние пары: оба утверждения помечены CONFLICT.");}
-            else if(sim)r.learning.add("Найдено сходство с накопленным знанием; новое утверждение сопоставлено, но не объявлено истинным автоматически.");
+            else if(sim){r.learning.add("Найдено сходство с накопленным знанием.");
+                if(reinforce(bestId,s,conf)) r.learning.add("🧠 Повторное подтверждение накопленного знания: support достиг порога, состояние изменено на ACTIVE.");
+                else r.learning.add("Повторное свидетельство записано; до автоматического закрепления нужны дополнительные независимые подтверждения.");
+            }
             else r.learning.add("Новое наблюдение не имеет достаточного сходства; оно осталось отдельным кандидатом.");
         }
         return r;
+    }
+    private boolean reinforce(String id,String text,double conf){
+        if(id==null||id.isEmpty())return false;
+        JSONArray a=read();boolean promoted=false;
+        try{for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);if(!id.equals(o.optString("id")))continue;if("CONFLICT".equals(o.optString("status"))||"REJECTED".equals(o.optString("status")))return false;
+            int support=o.optInt("support",1)+1;o.put("support",support);addHistory(o);o.put("updated",System.currentTimeMillis());o.put("version",Integer.toString(o.optInt("version",1)+1));
+            double old=o.optDouble("confidence",conf);o.put("confidence",Math.min(1.0,Math.max(old,conf)+0.05));
+            if(support>=3 && !"ACTIVE".equals(o.optString("status"))){o.put("status","ACTIVE");o.put("learningState","AUTO_CONFIRMED_BY_REPETITION");o.put("learningSignal","THREE_SUPPORTING_OBSERVATIONS");promoted=true;}
+            break;}}
+        catch(Exception ignored){return false;} write(a);return promoted;
     }
     private boolean isNonFact(String s){String x=norm(s);return x.matches("^(привет|здравствуйте|хай|добрый день|что|как|почему|зачем|кто|где|когда|помоги)\b.*");}
     public void learn(String id,boolean accepted){
