@@ -62,13 +62,25 @@ public class MainActivity extends Activity {
         addBubble("Агент",out.toString());
     }
     void sendToAgent(){
-        String raw=chatInput.getText().toString().trim();if(raw.isEmpty())return;addBubble("Ты",raw);rememberContext("Чат",raw);
-        MemoryStore.IngestResult r=store.ingest(raw,.70);StringBuilder a=new StringBuilder(agent.respond(raw));
+        String raw=chatInput.getText().toString().trim();if(raw.isEmpty())return;
+        addBubble("Ты",raw);rememberContext("Чат",raw);
+        StringBuilder a=new StringBuilder();
+        try{
+            a.append(agent.respond(raw));
+        }catch(Exception e){
+            a.append("⚠️ Ошибка ответа агента: ").append(e.getClass().getSimpleName())
+             .append("\nНо сообщение сохранено в истории интерфейса.");
+        }
         a.append("\n\n🧪 Цикл обучения:");
-        if(r.conflicts>0){a.append("\n• конфликтов: ").append(r.conflicts);for(String m:r.messages)a.append("\n• ").append(m);}
-        else a.append("\n• конфликтов: 0");
-        a.append("\n• сходств: ").append(r.similar).append("\n• новых наблюдений: ").append(r.added).append("\n• отброшено как не-факт: ").append(r.ignored);
-        for(String m:r.learning)a.append("\n• ").append(m);
+        try{
+            MemoryStore.IngestResult r=store.ingest(raw,.70);
+            if(r.conflicts>0){a.append("\n• конфликтов: ").append(r.conflicts);for(String m:r.messages)a.append("\n• ").append(m);}
+            else a.append("\n• конфликтов: 0");
+            a.append("\n• сходств: ").append(r.similar).append("\n• новых наблюдений: ").append(r.added).append("\n• отброшено как не-факт: ").append(r.ignored);
+            for(String m:r.learning)a.append("\n• ").append(m);
+        }catch(Exception e){
+            a.append("\n• ⚠️ запись в MemoryStore не выполнена: ").append(e.getClass().getSimpleName());
+        }
         a.append("\n\nПравило: генератор не участвует в этом цикле.");
         addBubble("Агент",a.toString());chatInput.setText("");
     }
