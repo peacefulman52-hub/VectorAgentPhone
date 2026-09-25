@@ -21,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
 public class MainActivity extends Activity {
+    SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>();
     MemoryStore store; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){
