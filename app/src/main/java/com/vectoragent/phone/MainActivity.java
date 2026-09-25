@@ -55,7 +55,8 @@ public class MainActivity extends Activity {
         LinearLayout sendRow=new LinearLayout(this);Button send=btn("➤  Отправить"),clear=btn("Очистить");send.setTextSize(16);sendRow.addView(send,new LinearLayout.LayoutParams(0,dp(52),1));sendRow.addView(clear,new LinearLayout.LayoutParams(0,dp(52),1));chat.addView(sendRow);send.setOnClickListener(v->sendToAgent());clear.setOnClickListener(v->chatInput.setText(""));
         chat.addView(tv("Общий контекст: "+contextLog.size()+" записей",13));
         chat.addView(tv("Контрольный эксперимент v0.9",16));
-        Button t=btn("🔥 Запустить: конфликт → подтверждение → обучение");chat.addView(t);t.setOnClickListener(v->runLearningExperiment());\n        Button webLearn=btn("🌱 Учить из интернета (ИИ-учитель)");chat.addView(webLearn);webLearn.setOnClickListener(v->runWebTeacher());
+        Button t=btn("🔥 Запустить: конфликт → подтверждение → обучение");chat.addView(t);t.setOnClickListener(v->runLearningExperiment());
+        Button webLearn=btn("🌱 Учить из интернета (ИИ-учитель)");chat.addView(webLearn);webLearn.setOnClickListener(v->runWebTeacher());
     }
     void runLearningExperiment(){
         store.snapshot();
