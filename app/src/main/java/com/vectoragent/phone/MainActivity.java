@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(16));scroll.addView(root);setContentView(scroll);
         TextView title=tv("VECTOR AGENT PHONE",24);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);root.addView(title);
-        root.addView(tv("v0.3 • provenance • relations • versioned memory",13));
+        root.addView(tv("v0.4 • provenance • relations • versioned memory",13));
         input=new EditText(this);input.setHint("RAW INPUT — наблюдение или утверждение");input.setMinLines(3);input.setGravity(48);root.addView(input,new LinearLayout.LayoutParams(-1,dp(95)));
         source=new EditText(this);source.setHint("Источник / откуда получено");root.addView(source);
         prov=new EditText(this);prov.setHint("Provenance — как подтверждено / ограничение");root.addView(prov);
