@@ -22,7 +22,7 @@ import java.io.InputStreamReader;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>();
-    MemoryStore store; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -33,11 +33,11 @@ public class MainActivity extends Activity {
     Button btn(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
     TextView chip(String s){TextView t=tv(s,13);t.setGravity(Gravity.CENTER);t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);t.setPadding(dp(12),dp(6),dp(12),dp(6));return t;}
     GradientDrawable bg(int color,float radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
-    @Override public void onCreate(Bundle b){super.onCreate(b);store=new MemoryStore(this);loadContext();build();showChat();}
+    @Override public void onCreate(Bundle b){super.onCreate(b);store=new MemoryStore(this);agent=new AgentEngine(store);loadContext();build();showChat();}
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v0.9 • наблюдение → сравнение → конфликт → гипотеза → обучение → ответ",12));
+        root.addView(tv("v1.0 • память → сравнение → конфликт → гипотеза → обучение → grounded-ответ",12));
         LinearLayout modes=new LinearLayout(this);modes.setGravity(Gravity.CENTER);Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор"),setMode=btn("⚙"),teacherMode=btn("🎓 Учитель");
         modes.addView(chatMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(memMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(srcMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(genMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(setMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(teacherMode,new LinearLayout.LayoutParams(0,dp(48),1));root.addView(modes);
         chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));
@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
     }
     void sendToAgent(){
         String raw=chatInput.getText().toString().trim();if(raw.isEmpty())return;addBubble("Ты",raw);rememberContext("Чат",raw);
-        MemoryStore.IngestResult r=store.ingest(raw,.70);StringBuilder a=new StringBuilder(memoryAnswer(raw));
+        MemoryStore.IngestResult r=store.ingest(raw,.70);StringBuilder a=new StringBuilder(agent.respond(raw));
         a.append("\n\n🧪 Цикл обучения:");
         if(r.conflicts>0){a.append("\n• конфликтов: ").append(r.conflicts);for(String m:r.messages)a.append("\n• ").append(m);}
         else a.append("\n• конфликтов: 0");
@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
         for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));TextView h=tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version,14);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("Источник: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("Provenance: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("Связь: "+x.relation,11));LinearLayout a=new LinearLayout(this);Button yes=btn("✓ Подтвердить"),no=btn("✕ Отклонить");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);}
     }
     void showSettings(){
-        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v0.9: экспериментальная модель обучения. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
+        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.0: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
         addSetting("Автоактивация","Если включена, новое наблюдение получает ACTIVE при достаточной уверенности и отсутствии конфликта.",autoSwitch());
         content.addView(tv("Порог уверенности",17));content.addView(tv("Это порог состояния, а не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});
         addAction("Snapshot","Сохраняет память и гипотезы перед экспериментом.","Сделать Snapshot",v->{store.snapshot();toast("Snapshot сохранён");});addAction("🧪 Лаборатория","Режим воспроизводимых экспериментов с журналом BEFORE/AFTER и сигналом обучения.","Открыть лабораторию",v->startActivity(new Intent(this,LabActivity.class)));addAction("Rollback","Возвращает последний Snapshot.","Выполнить Rollback",v->toast(store.rollback()?"Rollback выполнен":"Snapshot отсутствует"));
@@ -130,7 +130,7 @@ public class MainActivity extends Activity {
     void addSetting(String title,String desc,View control){content.addView(tv(title,17));content.addView(tv(desc,12));content.addView(control);}
     void addAction(String title,String desc,String label,View.OnClickListener l){content.addView(tv(title,17));content.addView(tv(desc,12));Button b=btn(label);content.addView(b);b.setOnClickListener(l);}
     Switch autoSwitch(){Switch s=new Switch(this);s.setText("Включить автоактивацию");s.setChecked(store.auto());s.setOnCheckedChangeListener((v,c)->store.setAuto(c));return s;}
-    void exportFile(){Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.putExtra(Intent.EXTRA_TITLE,"vector-memory-v0.9.json");startActivityForResult(i,10);}
+    void exportFile(){Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("application/json");i.putExtra(Intent.EXTRA_TITLE,"vector-memory-v1.0.json");startActivityForResult(i,10);}
     void importFile(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("application/json");i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,11);}
     void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
     @Override protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(result!=RESULT_OK||data==null)return;try{Uri u=data.getData();if(req==10){java.io.OutputStream out=getContentResolver().openOutputStream(u);out.write(store.exportJson().getBytes(StandardCharsets.UTF_8));out.close();toast("Export готов");}else{InputStream in=getContentResolver().openInputStream(u);java.io.ByteArrayOutputStream buf=new java.io.ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))>0)buf.write(b,0,n);in.close();store.importJson(new String(buf.toByteArray(),StandardCharsets.UTF_8));showMemory();toast("Import готов");}}catch(Exception e){toast("Ошибка файла");}}
