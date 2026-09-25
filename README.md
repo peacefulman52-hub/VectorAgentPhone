@@ -1,4 +1,4 @@
-# Vector Agent Phone 0.3.0
+# Vector Agent Phone 0.9.2
 
 Android prototype for controlled, provenance-aware memory.
 
@@ -17,7 +17,7 @@ The memory model now keeps more than the text itself:
 - Android Keystore-backed secret storage;
 - offline-by-default design.
 
-This release is still a memory/state prototype. It does not train neural weights on the phone and does not yet include the dialogue agent planned for a later release.
+v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting observations accumulate support; after three supporting observations a candidate can become ACTIVE automatically. Direct contradictions remain CONFLICT until resolved explicitly. This is symbolic state learning, not neural-weight training.
 
 ## Build
 
