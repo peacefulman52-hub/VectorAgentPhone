@@ -23,8 +23,23 @@ public final class AgentEngine {
         if(n.matches("^(привет|здравствуйте|хай|добрый день|добрый вечер).*"))
             return "Привет. Я локальный экспериментальный агент. Могу запоминать утверждения, сравнивать их с накопленным знанием, фиксировать конфликты и менять состояние памяти. Попробуй дать мне факт или два противоречащих факта.";
 
-        if(n.contains("что ты знаешь") || n.contains("что ты помнишь"))
-            return summary();
+        boolean knowledgeQuery=n.contains("что ты знаешь") || n.contains("что ты помнишь");
+        if(knowledgeQuery){
+            String topic=n.replace("что ты знаешь","")
+                          .replace("что ты помнишь","")
+                          .replace("расскажи","")
+                          .replace("про ","")
+                          .replace("о ","")
+                          .replace("об ","")
+                          .trim();
+            if(topic.isEmpty()) return summary();
+            hits.clear();
+            for(MemoryStore.Item x:store.all()){
+                if("REJECTED".equals(x.status)) continue;
+                int score=score(topic,x.text.toLowerCase(Locale.ROOT));
+                if(score>0) hits.add(x);
+            }
+        }
 
         if(hits.isEmpty())
             return "В моей накопленной памяти сейчас нет достаточно близкого знания по этому вопросу. Я не буду выдавать догадку за факт. Если дашь наблюдение или источник, я сохраню его как кандидата и сравню с уже накопленным.";
