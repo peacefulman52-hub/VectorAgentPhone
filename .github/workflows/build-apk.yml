@@ -22,12 +22,12 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-1.0.0-apk
+          name: VectorAgentPhone-1.0.1-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v1.0.0" --notes "v1.0.0: repeated supporting observations can promote accumulated knowledge to ACTIVE." || true
+          gh release create v1.0.1 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v1.0.1" --notes "v1.0.1: repeated supporting observations can promote accumulated knowledge to ACTIVE." || true
 
 
