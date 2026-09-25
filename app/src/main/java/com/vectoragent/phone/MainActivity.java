@@ -23,7 +23,7 @@ public class MainActivity extends Activity {
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=tv("VECTOR AGENT",24);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);head.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         Button memBtn=btn("Память");memBtn.setOnClickListener(v->showMemory());head.addView(memBtn);root.addView(head);
-        root.addView(tv("v0.5 • auto-ingest • contradiction engine • feedback learning",12));
+        root.addView(tv("v0.6 • pattern mining • hypothesis learning • provenance",12));
         chat=new LinearLayout(this);chat.setOrientation(LinearLayout.VERTICAL);root.addView(chat);
         list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);
         input=new EditText(this);input.setHint("Напиши агенту… факты, наблюдения, вопросы");input.setMinLines(2);input.setGravity(48);
@@ -36,7 +36,8 @@ public class MainActivity extends Activity {
         chat.removeAllViews();chat.addView(tv("Я не языковая модель: внутри телефона сейчас локальный агент памяти. Он выделяет простые утверждения, сохраняет их, сравнивает с памятью и учится на твоём подтверждении/отклонении.",14));
         chat.addView(tv("Можно написать сразу несколько фактов — по одному предложению или строке.",13));chat.addView(input,new LinearLayout.LayoutParams(-1,dp(90)));
         Button send=btn("ОТПРАВИТЬ АГЕНТУ");send.setOnClickListener(v->sendToAgent());chat.addView(send);chat.addView(tv("Последний тест",17));
-        chat.addView(tv("Для проверки: «Вода кипит при 100 C» → затем «Вода не кипит при 100 C». Агент должен сохранить оба и пометить пару CONFLICT.",13));
+        chat.addView(tv("Базовый тест: «Вода кипит при 100 C» → затем «Вода не кипит при 100 C». Оба сохраняются.",13));
+        chat.addView(tv("Новый тест обучения: в Памяти добавь пары «Свет включен/выключен», «Экран включен/выключен», «Мотор включен/выключен». Агент должен сам предложить абстрактную гипотезу о повторяющемся противопоставлении.",13));
     }
     void sendToAgent(){
         String raw=input.getText().toString().trim();if(raw.isEmpty())return;addBubble("Ты",raw);
@@ -55,10 +56,24 @@ public class MainActivity extends Activity {
         chat.addView(tv("Добавить факт вручную",16));chat.addView(input,new LinearLayout.LayoutParams(-1,dp(75)));chat.addView(source);chat.addView(prov);chat.addView(relation);chat.addView(confLabel);chat.addView(confidence);chat.addView(auto);
         Button add=btn("СОХРАНИТЬ В ПАМЯТЬ");add.setOnClickListener(v->{String s=input.getText().toString().trim();if(s.isEmpty())return;String c=store.add(s,confidence.getProgress()/100.0,auto.isChecked(),source.getText().toString().trim(),prov.getText().toString().trim(),relation.getText().toString().trim());input.setText("");source.setText("");prov.setText("");relation.setText("");toast(c.isEmpty()?"Сохранено":"Обнаружен конфликт — оба факта сохранены");refresh();});chat.addView(add);
         chat.addView(tv("TEST LAB",16));Button test=btn("ТЕСТ 6: добавить пару про воду");test.setOnClickListener(v->{store.add("Вода кипит при 100 C",.90,true,"TEST","synthetic test case","supports baseline");store.add("Вода не кипит при 100 C",.90,true,"TEST","synthetic contradiction case","contradicts baseline");refresh();toast("Тест 6 добавлен");});chat.addView(test);
+        chat.addView(tv("ГИПОТЕЗЫ — найденные системой закономерности",18));
+        LinearLayout hyps=new LinearLayout(this);hyps.setOrientation(LinearLayout.VERTICAL);chat.addView(hyps);refreshHypotheses(hyps);
         chat.addView(tv("Факты",18));chat.addView(list);refresh();
     }
+    void refreshHypotheses(LinearLayout hyps){
+        hyps.removeAllViews(); List<MemoryStore.Hypothesis> hs=store.hypotheses();
+        if(hs.isEmpty()){hyps.addView(tv("Пока нет кандидатов. Накопи повторяющиеся структуры.",13));return;}
+        for(MemoryStore.Hypothesis h:hs){
+            LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);
+            row.addView(tv(h.status+" • support "+h.support+" • v"+h.version,14));
+            row.addView(tv("Гипотеза: "+h.rule,15));
+            row.addView(tv("Основания: "+h.evidence,11));
+            LinearLayout a=new LinearLayout(this);Button yes=btn("✓ ПРИНЯТЬ"),no=btn("✕ ОТКЛОНИТЬ");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));
+            yes.setOnClickListener(v->{store.learnHypothesis(h.id,true);showMemory();});no.setOnClickListener(v->{store.learnHypothesis(h.id,false);showMemory();});row.addView(a);hyps.addView(row);
+        }
+    }
     void refresh(){
-        if(list==null||stats==null)return;list.removeAllViews();stats.setText("CANDIDATE: "+store.count("CANDIDATE")+"   ACTIVE: "+store.count("ACTIVE")+"   CONFLICT: "+store.count("CONFLICT")+"   REJECTED: "+store.count("REJECTED"));
+        if(list==null||stats==null)return;list.removeAllViews();stats.setText("CANDIDATE: "+store.count("CANDIDATE")+"   ACTIVE: "+store.count("ACTIVE")+"   CONFLICT: "+store.count("CONFLICT")+"   REJECTED: "+store.count("REJECTED")+"   HYPOTHESES: "+store.hypotheses().size());
         List<MemoryStore.Item> items=store.all();if(items.isEmpty()){list.addView(tv("Пока пусто.",14));return;}
         for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);TextView h=tv(x.status+"  •  "+Math.round(x.confidence*100)+"%  • v"+x.version,15);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("source: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("provenance: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("relation: "+x.relation,11));
             LinearLayout a=new LinearLayout(this);Button yes=btn("✓ ПОДТВЕРДИТЬ"),no=btn("✕ ОТКЛОНИТЬ");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);View line=new View(this);line.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(1)));list.addView(line);}
