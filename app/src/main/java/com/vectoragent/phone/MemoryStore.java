@@ -55,7 +55,7 @@ public class MemoryStore {
     }
     public IngestResult ingest(String raw,double conf){
         IngestResult r=new IngestResult();String[] parts=raw.split("[\\n.!?;]+");
-        for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}String c=add(s,conf,true,"CHAT","user message → local claim extraction","auto-ingested");r.added++;if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");}}return r;
+        for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}String c=add(s,conf,auto(),"CHAT","user message → local claim extraction","auto-ingested");r.added++;if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");}}return r;
     }
     private boolean isNonFact(String s){String x=norm(s);return x.matches("^(привет|здравствуйте|хай|добрый день|что|как|почему|зачем|кто|где|когда|помоги)\\b.*");}
     public void setStatus(String id,String status){JSONArray a=read();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){history(o);o.put("status",status);o.put("updated",System.currentTimeMillis());o.put("version",Integer.toString(o.optInt("version",1)+1));break;}}catch(Exception ignored){}write(a);}
@@ -63,7 +63,7 @@ public class MemoryStore {
     private void history(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     public double threshold(){return Double.longBitsToDouble(p.getLong("thresholdBits",Double.doubleToLongBits(.70)));}
     public void setThreshold(double v){p.edit().putLong("thresholdBits",Double.doubleToLongBits(v)).apply();}
-    public boolean auto(){return p.getBoolean("auto",true);} public void setAuto(boolean v){p.edit().putBoolean("auto",v).apply();}
+    public boolean auto(){return p.getBoolean("auto",false);} public void setAuto(boolean v){p.edit().putBoolean("auto",v).apply();}
     public List<Hypothesis> hypotheses(){List<Hypothesis> r=new ArrayList<>();try{JSONArray a=new JSONArray(p.getString(HKEY,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);r.add(new Hypothesis(o.optString("id"),o.optString("rule"),o.optString("evidence"),o.optString("status","CANDIDATE"),o.optString("version","1"),o.optInt("support")));}}catch(Exception ignored){}return r;}
     private JSONArray readHyp(){try{return new JSONArray(p.getString(HKEY,"[]"));}catch(Exception e){return new JSONArray();}}
     private void writeHyp(JSONArray a){p.edit().putString(HKEY,a.toString()).apply();}
