@@ -33,7 +33,7 @@ public class MemoryStore {
     private void write(JSONArray a){p.edit().putString(KEY,enc(a.toString())).apply();}
     public List<Item> all(){List<Item> r=new ArrayList<>();JSONArray a=read();for(int i=0;i<a.length();i++)try{r.add(item(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
-    private String norm(String s){return s.toLowerCase().replaceAll("\s+"," ").trim();}
+    private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
     private boolean has(String s,String... xs){for(String x:xs)if(s.contains(x))return true;return false;}
     private boolean contradicts(String a,String b){
         String x=norm(a),y=norm(b);
@@ -46,7 +46,7 @@ public class MemoryStore {
         if((x.contains("кипит")&&y.contains("не кипит"))||(y.contains("кипит")&&x.contains("не кипит")))return true;
         return false;
     }
-    private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^\p{L}\p{Nd} ]"," ").split("\s+");String[] y=norm(b).replaceAll("[^\p{L}\p{Nd} ]"," ").split("\s+");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
+    private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^\\p{L}\\p{Nd} ]"," ").split("\\s+");String[] y=norm(b).replaceAll("[^\p{L}\p{Nd} ]"," ").split("\s+");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
     private void addHistory(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
