@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v1.0 • память → сравнение → конфликт → гипотеза → обучение → grounded-ответ",12));
+        root.addView(tv("v1.2 • память → отношения → гипотезы → проверка → обучение → grounded-ответ",12));
         LinearLayout modes=new LinearLayout(this);modes.setGravity(Gravity.CENTER);Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор"),setMode=btn("⚙"),teacherMode=btn("🎓 Учитель");
         modes.addView(chatMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(memMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(srcMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(genMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(setMode,new LinearLayout.LayoutParams(0,dp(48),1));modes.addView(teacherMode,new LinearLayout.LayoutParams(0,dp(48),1));root.addView(modes);
         chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));
@@ -54,9 +54,11 @@ public class MainActivity extends Activity {
         chatInput=new EditText(this);chatInput.setHint("Сообщение…");chatInput.setMinLines(2);chatInput.setGravity(48);chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this);Button send=btn("➤  Отправить"),clear=btn("Очистить");send.setTextSize(16);sendRow.addView(send,new LinearLayout.LayoutParams(0,dp(52),1));sendRow.addView(clear,new LinearLayout.LayoutParams(0,dp(52),1));chat.addView(sendRow);send.setOnClickListener(v->sendToAgent());clear.setOnClickListener(v->chatInput.setText(""));
         chat.addView(tv("Общий контекст: "+contextLog.size()+" записей",13));
+        if(!recentContext().isEmpty()){ chat.addView(tv("🧠 Последний сохранённый контекст",14)); chat.addView(tv(recentContext(),12)); }
         chat.addView(tv("Контрольный эксперимент v0.9",16));
         Button t=btn("🔥 Запустить: конфликт → подтверждение → обучение");chat.addView(t);t.setOnClickListener(v->runLearningExperiment());
         Button webLearn=btn("🌱 Учить из интернета (ИИ-учитель)");chat.addView(webLearn);webLearn.setOnClickListener(v->runWebTeacher());
+        Button testHyp=btn("🔬 Проверить накопленные гипотезы");chat.addView(testHyp);testHyp.setOnClickListener(v->addBubble("Лаборатория",store.testHypotheses()));
     }
     void runLearningExperiment(){
         store.snapshot();
@@ -82,6 +84,7 @@ public class MainActivity extends Activity {
             else a.append("\n• конфликтов: 0");
             a.append("\n• сходств: ").append(r.similar).append("\n• новых наблюдений: ").append(r.added).append("\n• отброшено как не-факт: ").append(r.ignored);
             for(String m:r.learning)a.append("\n• ").append(m);
+            a.append("\n• отношения: "); boolean relFound=false; List<MemoryStore.Item> allNow=store.all(); int from=Math.max(0,allNow.size()-5); for(int i=from;i<allNow.size();i++){MemoryStore.Item z=allNow.get(i); if(z.relation!=null&&!z.relation.isEmpty()){a.append(z.relation).append(" | "); relFound=true;}} if(!relFound)a.append("новых явных отношений пока нет");
         }catch(Exception e){
             a.append("\n• ⚠️ запись в MemoryStore не выполнена: ").append(e.getClass().getSimpleName());
         }
@@ -151,7 +154,7 @@ public class MainActivity extends Activity {
         for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));TextView h=tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version,14);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("Источник: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("Provenance: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("Связь: "+x.relation,11));LinearLayout a=new LinearLayout(this);Button yes=btn("✓ Подтвердить"),no=btn("✕ Отклонить");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);}
     }
     void showSettings(){
-        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.0: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
+        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.2: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
         content.addView(tv("🤖 Подключение ИИ-учителя",17));
         content.addView(tv("ИИ-учитель использует OpenAI Responses API и веб-поиск, чтобы находить внешние свидетельства. Результат не считается независимым источником сам по себе; приложение извлекает домены найденных источников и использует их как отдельные свидетельства.",12));
         EditText apiKey=new EditText(this);apiKey.setHint("OpenAI API key (sk-...)");apiKey.setSingleLine(true);apiKey.setInputType(129);apiKey.setText(getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key",""));content.addView(apiKey);
@@ -160,7 +163,7 @@ public class MainActivity extends Activity {
         addSetting("Автоактивация","Если включена, новое наблюдение получает ACTIVE при достаточной уверенности и отсутствии конфликта.",autoSwitch());
         content.addView(tv("Порог уверенности",17));content.addView(tv("Это порог состояния, а не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});
         addAction("Snapshot","Сохраняет память и гипотезы перед экспериментом.","Сделать Snapshot",v->{store.snapshot();toast("Snapshot сохранён");});addAction("🧪 Лаборатория","Режим воспроизводимых экспериментов с журналом BEFORE/AFTER и сигналом обучения.","Открыть лабораторию",v->startActivity(new Intent(this,LabActivity.class)));addAction("Rollback","Возвращает последний Snapshot.","Выполнить Rollback",v->toast(store.rollback()?"Rollback выполнен":"Snapshot отсутствует"));
-        content.addView(tv("Как работает v0.9",17));content.addView(tv("1) наблюдение → 2) сравнение с накопленным → 3) конфликт/сходство/новизна → 4) изменение состояния → 5) пользовательский сигнал → 6) гипотеза/правило → 7) следующий ответ использует состояние памяти.",13));
+        content.addView(tv("Как работает v1.2",17));content.addView(tv("1) наблюдение → 2) сравнение → 3) поиск отношений (CONTRADICTS / SUPPORTS / CAUSES / TEMPORAL / CONTAINS / ATTRIBUTE) → 4) изменение состояния → 5) пользовательский сигнал → 6) гипотеза → 7) проверка гипотезы новыми данными → 8) следующий ответ использует состояние памяти.",13));
         content.addView(tv("Контрольная ветка",17));content.addView(tv("Генератор может написать убедительный текст, но его результат не попадает в MemoryStore. Это позволяет отдельно проверять: красивый текст ≠ накопленное знание.",13));
         content.addView(tv("Export / Import",17));content.addView(tv("Export выгружает память в JSON. Import загружает JSON обратно — внешний слой продолжения эксперимента.",12));LinearLayout io=new LinearLayout(this);Button ex=btn("Export JSON"),im=btn("Import JSON");io.addView(ex,new LinearLayout.LayoutParams(0,-2,1));io.addView(im,new LinearLayout.LayoutParams(0,-2,1));content.addView(io);ex.setOnClickListener(v->exportFile());im.setOnClickListener(v->importFile());
     }
