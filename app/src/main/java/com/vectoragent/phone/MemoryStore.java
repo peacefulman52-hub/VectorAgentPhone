@@ -25,7 +25,42 @@ public class MemoryStore {
     }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
     private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses"; private final SharedPreferences p;
-    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();}
+    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();ensureSeedData();}
+
+    private void ensureSeedData(){
+        try{
+            if(SeedData.VERSION.equals(p.getString("seed_version",""))) return;
+            JSONArray a=read();
+            java.util.HashSet<String> existing=new java.util.HashSet<>();
+            for(int i=0;i<a.length();i++) existing.add(norm(a.optJSONObject(i).optString("text")));
+            long now=System.currentTimeMillis();
+            int index=0;
+            for(String[] fact:SeedData.FACTS){
+                if(fact.length<2) continue;
+                String text=fact[1];
+                if(existing.contains(norm(text))) continue;
+                JSONObject o=new JSONObject();
+                o.put("id","seed-"+SeedData.VERSION+"-"+index++);
+                o.put("text",text);
+                o.put("status","ACTIVE");
+                o.put("source","BUILT_IN_BASE/"+fact[0]);
+                o.put("relation","");
+                o.put("provenance","bundled starter knowledge; category="+fact[0]+"; seed="+SeedData.VERSION);
+                o.put("version","1");
+                o.put("confidence",0.95);
+                o.put("support",1);
+                o.put("created",now);
+                o.put("updated",now);
+                o.put("learningState","BUILT_IN");
+                o.put("seed",true);
+                o.put("history",new JSONArray());
+                a.put(o);
+                existing.add(norm(text));
+            }
+            write(a);
+            p.edit().putString("seed_version",SeedData.VERSION).apply();
+        }catch(Exception ignored){}
+    }
     private boolean ensureKey(){try{KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(ks.containsAlias("VectorAgentKey"))return true;try{KeyGenerator kg=KeyGenerator.getInstance("AES","AndroidKeyStore");kg.init(256);kg.generateKey();return true;}catch(Exception ignored){}KeyGenerator kg=KeyGenerator.getInstance("AES","AndroidKeyStore");kg.init(128);kg.generateKey();return true;}catch(Exception ignored){return false;}}
     private String enc(String s){try{if(!ensureKey())return "PLAIN:"+Base64.encodeToString(s.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey k=((KeyStore.SecretKeyEntry)ks.getEntry("VectorAgentKey",null)).getSecretKey();Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,k);byte[] iv=c.getIV(),data=c.doFinal(s.getBytes(StandardCharsets.UTF_8));byte[] out=new byte[iv.length+data.length];System.arraycopy(iv,0,out,0,iv.length);System.arraycopy(data,0,out,iv.length,data.length);return Base64.encodeToString(out,Base64.NO_WRAP);}catch(Exception e){throw new RuntimeException(e);}}
     private String dec(String s){try{if(s.startsWith("PLAIN:"))return new String(Base64.decode(s.substring(6),Base64.NO_WRAP),StandardCharsets.UTF_8);byte[] all=Base64.decode(s,Base64.NO_WRAP);byte[] iv=new byte[12],data=new byte[all.length-12];System.arraycopy(all,0,iv,0,12);System.arraycopy(all,12,data,0,data.length);KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey k=((KeyStore.SecretKeyEntry)ks.getEntry("VectorAgentKey",null)).getSecretKey();Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,k,new GCMParameterSpec(128,iv));return new String(c.doFinal(data),StandardCharsets.UTF_8);}catch(Exception e){return s;}}
