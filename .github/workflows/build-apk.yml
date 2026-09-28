@@ -28,6 +28,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.1.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v1.1.0" --notes "v1.1.0: AI web teacher, independent source domains, and gradual evidence-based learning." || true
-
-
+          gh release create v1.2.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v1.2.0" --notes "Learning Core: persistent memory, relation discovery, hypothesis testing, user feedback, isolated answer generator." || true
