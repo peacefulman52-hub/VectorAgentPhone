@@ -104,12 +104,30 @@ public class MemoryStore {
     }
     private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");String[] y=norm(b).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
     private void addHistory(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
+    private String detectRelation(String a,String b){
+        String x=norm(a), y=norm(b);
+        if(contradicts(x,y)) return "CONTRADICTS";
+        String[] support={"подтверждает","подтверждено","соответствует","согласуется","доказывает","поддерживает"};
+        for(String k:support) if(x.contains(k)||y.contains(k)) return "SUPPORTS";
+        String[] cause={"потому что","из-за","приводит к","привело к","вызывает","является причиной"};
+        for(String k:cause) if(x.contains(k)||y.contains(k)) return "CAUSES";
+        String[] temporal={"сначала","затем","после","до того","раньше","позже","сначала"};
+        for(String k:temporal) if(x.contains(k)||y.contains(k)) return "TEMPORAL";
+        String[] contain={"содержит","включает","состоит из","внутри"};
+        for(String k:contain) if(x.contains(k)||y.contains(k)) return "CONTAINS";
+        String[] attr={"имеет","характеризуется","относится к","является"};
+        for(String k:attr) if(x.contains(k)||y.contains(k)) return "ATTRIBUTE";
+        return "";
+    }
+
+    public String relationBetween(String a,String b){ return detectRelation(a,b); }
+
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
         try{
             JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
-                if(contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;}
+                String detected=detectRelation(text,oldText); if(contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));}
             }
             if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
         }catch(Exception ignored){return "";}
@@ -154,8 +172,32 @@ public class MemoryStore {
     public void learnHypothesis(String id,boolean accepted){JSONArray a=readHyp();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){o.put("status",accepted?"ACTIVE":"REJECTED");o.put("version",Integer.toString(o.optInt("version",1)+1));o.put("learningSignal",accepted?"USER_CONFIRMED":"USER_REJECTED");o.put("updated",System.currentTimeMillis());break;}}catch(Exception ignored){}writeHyp(a);}
     public int discoverHypotheses(){List<Item> items=all();java.util.HashMap<String,java.util.HashMap<String,java.util.HashSet<String>>> groups=new java.util.HashMap<>();
         for(int i=0;i<items.size();i++)for(int j=i+1;j<items.size();j++){String[] a=norm(items.get(i).text).split(" "),b=norm(items.get(j).text).split(" ");if(a.length!=b.length||a.length<2)continue;int diff=-1,n=0;for(int k=0;k<a.length;k++)if(!a[k].equals(b[k])){diff=k;n++;}if(n!=1)continue;String key="POS"+diff+"|"+signature(a,diff);java.util.HashMap<String,java.util.HashSet<String>> m=groups.get(key);if(m==null){m=new java.util.HashMap<>();groups.put(key,m);}String pair=a[diff]+" ↔ "+b[diff];m.computeIfAbsent("PAIR",z->new java.util.HashSet<>()).add(pair);}
-        JSONArray h=readHyp();int created=0;for(String key:groups.keySet()){java.util.HashSet<String> pairs=groups.get(key).get("PAIR");if(pairs==null||pairs.size()<2)continue;String rule="повторяющееся противопоставление в шаблоне "+key.substring(key.indexOf("|")+1)+": "+pairs;String hid="h-"+Integer.toHexString(rule.hashCode());boolean exists=false;for(int i=0;i<h.length();i++)if(h.optJSONObject(i)!=null&&hid.equals(h.optJSONObject(i).optString("id"))){exists=true;break;}if(!exists){try{JSONObject o=new JSONObject();o.put("id",hid);o.put("rule",rule);o.put("evidence",pairs.toString());o.put("support",pairs.size());o.put("status","CANDIDATE");o.put("version","1");o.put("created",System.currentTimeMillis());h.put(o);created++;}catch(Exception ignored){}}}if(created>0)writeHyp(h);return created;}
+        JSONArray h=readHyp();int created=0;for(String key:groups.keySet()){java.util.HashSet<String> pairs=groups.get(key).get("PAIR");if(pairs==null||pairs.size()<2)continue;String rule="повторяющееся противопоставление в шаблоне "+key.substring(key.indexOf("|")+1)+": "+pairs;String hid="h-"+Integer.toHexString(rule.hashCode());boolean exists=false;for(int i=0;i<h.length();i++)if(h.optJSONObject(i)!=null&&hid.equals(h.optJSONObject(i).optString("id"))){exists=true;break;}if(!exists){try{JSONObject o=new JSONObject();o.put("id",hid);o.put("rule",rule);o.put("evidence",pairs.toString());o.put("support",pairs.size());o.put("tests",Math.max(0,pairs.size()-1));o.put("counterexamples",0);o.put("status","CANDIDATE");o.put("version","1");o.put("created",System.currentTimeMillis());h.put(o);created++;}catch(Exception ignored){}}}if(created>0)writeHyp(h);return created;}
     private String signature(String[] a,int diff){StringBuilder s=new StringBuilder();for(int i=0;i<a.length;i++)if(i!=diff)s.append(a[i]).append(" ");return s.toString().trim();}
+    public String testHypotheses(){
+        StringBuilder out=new StringBuilder();
+        List<Hypothesis> hs=hypotheses();
+        if(hs.isEmpty()) return "Гипотез для проверки пока нет.";
+        List<Item> items=all();
+        for(Hypothesis h:hs){
+            int evidence=0, active=0, conflicts=0;
+            for(Item x:items){
+                if("ACTIVE".equals(x.status)) active++;
+                if("CONFLICT".equals(x.status)) conflicts++;
+                String r=x.relation==null?"":x.relation;
+                if(r.contains("CONTRADICTS") && h.rule.contains("противопоставление")) conflicts++;
+                if(h.evidence.contains(x.text.substring(0,Math.min(18,x.text.length())))) evidence++;
+            }
+            out.append("• ").append(h.status).append(" — ").append(h.rule)
+               .append("\n  support=").append(h.support)
+               .append(", проверочных совпадений=").append(Math.max(h.support-1,0))
+               .append(", конфликтов в памяти=").append(conflicts)
+               .append("\n");
+        }
+        out.append("\nПроверка не превращает гипотезу в факт автоматически: подтверждение пользователя остаётся отдельным сигналом.");
+        return out.toString();
+    }
+
     public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString();}
     public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
     public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).apply();}
