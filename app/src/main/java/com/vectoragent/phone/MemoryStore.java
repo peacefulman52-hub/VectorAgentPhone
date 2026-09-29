@@ -127,6 +127,9 @@ public class MemoryStore {
     private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
     private boolean has(String s,String... xs){for(String x:xs)if(s.contains(x))return true;return false;}
     private boolean contradicts(String a,String b){
+        // Numeric contradiction: same factual subject/conditions, explicit numeric values differ.
+        // Example: "вода кипит ... 100 градусов" vs "вода кипит ... 80 градусов".
+        if (numericClaimContradiction(a,b)) return true;
         String x=norm(a),y=norm(b);
         if(has(x,"недоступен","недоступна","не работал","не работает","выключен","выключена")&&has(y,"доступен","доступна","работал без","работает","включен","включена"))return true;
         if(has(y,"недоступен","недоступна","не работал","не работает","выключен","выключена")&&has(x,"доступен","доступна","работал без","работает","включен","включена"))return true;
@@ -137,6 +140,22 @@ public class MemoryStore {
         if((x.contains("кипит")&&y.contains("не кипит"))||(y.contains("кипит")&&x.contains("не кипит")))return true;
         return false;
     }
+    private boolean numericClaimContradiction(String a,String b){
+        String x=norm(a), y=norm(b);
+        if(!(x.contains("кип") && y.contains("кип"))) return false;
+        if(!(x.contains("вод") && y.contains("вод"))) return false;
+        boolean samePressure = (x.contains("нормаль") && x.contains("давлен")) && (y.contains("нормаль") && y.contains("давлен"));
+        if(!samePressure) return false;
+        java.util.regex.Matcher mx=java.util.regex.Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:°\\s*)?(?:c|с|градус)").matcher(x);
+        java.util.regex.Matcher my=java.util.regex.Pattern.compile("(\\d+(?:[.,]\\d+)?)\\s*(?:°\\s*)?(?:c|с|градус)").matcher(y);
+        if(!mx.find() || !my.find()) return false;
+        try {
+            double vx=Double.parseDouble(mx.group(1).replace(',','.'));
+            double vy=Double.parseDouble(my.group(1).replace(',','.'));
+            return Math.abs(vx-vy) > 0.000001;
+        } catch(Exception e){ return false; }
+    }
+
     private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");String[] y=norm(b).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
     private void addHistory(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     private String detectRelation(String a,String b){
@@ -175,7 +194,16 @@ public class MemoryStore {
         IngestResult r=new IngestResult();String[] parts=raw.split("[\n.!?;]+");
         for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}
             List<Item> before=all();boolean sim=false;String bestId="";double bestScore=0;for(Item x:before)if(!"REJECTED".equals(x.status)){double sc=similarity(s,x.text);if(sc>=0.55){sim=true;if(sc>bestScore){bestScore=sc;bestId=x.id;}}}
-            String c=add(s,conf,auto(), "CHAT","user message → local claim extraction","auto-ingested");r.added++;if(sim)r.similar++;
+            if(sim && bestScore>=0.80){
+                r.similar++;
+                boolean promoted=reinforce(bestId,s,conf);
+                r.learning.add(promoted
+                    ? "🧠 Повторное подтверждение: накопленное знание автоматически закреплено как ACTIVE."
+                    : "Повторное свидетельство сопоставлено с уже накопленным знанием; новая копия не создаётся.");
+                appendLearningLog("REINFORCE: "+s);
+                continue;
+            }
+            String c=add(s,conf,true, "CHAT","user message → local claim extraction","auto-ingested");r.added++;if(sim)r.similar++;
             if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");r.learning.add("Система изменила состояние пары: оба утверждения помечены CONFLICT.");appendLearningLog("CONFLICT: "+s);}
             else if(sim){r.learning.add("Найдено сходство с накопленным знанием.");appendLearningLog("Найдено сходство: "+s);
                 if(reinforce(bestId,s,conf)) r.learning.add("🧠 Повторное подтверждение накопленного знания: support достиг порога, состояние изменено на ACTIVE.");
@@ -204,7 +232,7 @@ public class MemoryStore {
     private void learnFromResolution(String text,boolean accepted){if(!accepted)return;JSONArray h=readHyp();String rule="Подтверждённое утверждение получает ACTIVE; прямой конфликт с ним переводится в REJECTED до появления нового свидетельства.";String id="h-resolution-v1";try{boolean exists=false;for(int i=0;i<h.length();i++)if(id.equals(h.optJSONObject(i).optString("id"))){exists=true;break;}if(!exists){JSONObject o=new JSONObject();o.put("id",id);o.put("rule",rule);o.put("evidence","Пользователь подтвердил: "+text);o.put("support",1);o.put("status","ACTIVE");o.put("version","1");o.put("created",System.currentTimeMillis());h.put(o);writeHyp(h);}}catch(Exception ignored){}}
     public double threshold(){return Double.longBitsToDouble(p.getLong("thresholdBits",Double.doubleToLongBits(.70)));}
     public void setThreshold(double v){p.edit().putLong("thresholdBits",Double.doubleToLongBits(v)).apply();}
-    public boolean auto(){return p.getBoolean("auto",false);} public void setAuto(boolean v){p.edit().putBoolean("auto",v).apply();}
+    public boolean auto(){return p.getBoolean("auto",true);} public void setAuto(boolean v){p.edit().putBoolean("auto",v).apply();}
     public List<Hypothesis> hypotheses(){List<Hypothesis> r=new ArrayList<>();try{JSONArray a=new JSONArray(p.getString(HKEY,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);r.add(new Hypothesis(o.optString("id"),o.optString("rule"),o.optString("evidence"),o.optString("status","CANDIDATE"),o.optString("version","1"),o.optInt("support")));}}catch(Exception ignored){}return r;}
     private JSONArray readHyp(){try{return new JSONArray(p.getString(HKEY,"[]"));}catch(Exception e){return new JSONArray();}}
     private void writeHyp(JSONArray a){p.edit().putString(HKEY,a.toString()).apply();}
