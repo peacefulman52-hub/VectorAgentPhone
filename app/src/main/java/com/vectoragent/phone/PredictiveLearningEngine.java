@@ -43,10 +43,6 @@ public final class PredictiveLearningEngine {
         public String rule = "";
     }
 
-    private static SharedPreferences prefs(MemoryStore store) {
-        return null;
-    }
-
     /*
      * MemoryStore intentionally keeps its Android context private. The
      * predictive engine therefore receives a context through the lightweight
@@ -307,7 +303,13 @@ public final class PredictiveLearningEngine {
                     for(int k=0;k<ta.length;k++) {
                         if(!ta[k].equals(tb[k])) { diff=k; diffs++; }
                     }
-                    if(diffs!=1) continue;
+                    // Two repetitions are also evidence: choose a meaningful
+                    // slot (prefer a numeric/value token) so the model can
+                    // predict repetition and later register a counterexample.
+                    if(diffs==0) {
+                        diff=chooseValueSlot(ta);
+                        if(diff<0) continue;
+                    } else if(diffs!=1) continue;
 
                     String tpl=template(ta,diff);
                     String id=ruleId(tpl,diff);
@@ -354,6 +356,12 @@ public final class PredictiveLearningEngine {
         } catch(Exception e) {
             log("MODEL_REBUILD_ERROR: "+e.getClass().getSimpleName());
         }
+    }
+
+    private static int chooseValueSlot(String[] t) {
+        for(int i=0;i<t.length;i++) if(t[i].matches("[-+]?\\d+(?:[.,]\\d+)?")) return i;
+        for(int i=t.length-1;i>=0;i--) if(t[i].length()>=3) return i;
+        return t.length>0 ? t.length-1 : -1;
     }
 
     private static JSONObject findExisting(JSONArray a,String id) {
