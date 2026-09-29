@@ -12,6 +12,11 @@ public final class AgentEngine {
     public String respond(String input){
         String q=input==null?"":input.trim();
         if(q.isEmpty()) return "Скажи, что проверить или чему меня научить.";
+
+        // Обучение выполняется ДО построения ответа.
+        // Ответ не записывается обратно в память.
+        LearningEngine.run(store);
+
         String n=q.toLowerCase(Locale.ROOT);
         List<MemoryStore.Item> hits=new ArrayList<>();
         for(MemoryStore.Item x:store.all()){
