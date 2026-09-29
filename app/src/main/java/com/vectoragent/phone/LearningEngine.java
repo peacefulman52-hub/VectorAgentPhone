@@ -46,11 +46,9 @@ public final class LearningEngine {
         }
 
         if(discovered>0)
-            events.append("DISCOVERED-HYPOTHESES: ").append(discovered).append("
-");
+            events.append("DISCOVERED-HYPOTHESES: ").append(discovered).append("\\n");
         if(promoted>0)
-            events.append("PROMOTED-HYPOTHESES: ").append(promoted).append("
-");
+            events.append("PROMOTED-HYPOTHESES: ").append(promoted).append("\\n");
 
         if(events.length()==0)
             events.append("LEARNING-CYCLE: новых переходов состояния нет; ")
