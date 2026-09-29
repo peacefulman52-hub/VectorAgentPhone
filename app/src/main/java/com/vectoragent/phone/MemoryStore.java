@@ -24,7 +24,7 @@ public class MemoryStore {
         Hypothesis(String id,String rule,String evidence,String status,String version,int support){this.id=id;this.rule=rule;this.evidence=evidence;this.status=status;this.version=version;this.support=support;}
     }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
-    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses"; private final SharedPreferences p;
+    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p;
     public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();ensureSeedData();}
 
     private void ensureSeedData(){
@@ -167,17 +167,21 @@ public class MemoryStore {
             if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
         }catch(Exception ignored){return "";}
     }
+    public void appendLearningLog(String event){ try{ JSONArray a=readLearningLog(); JSONObject o=new JSONObject(); o.put("time",System.currentTimeMillis()); o.put("event",event); a.put(o); while(a.length()>300) a.remove(0); p.edit().putString(LKEY,a.toString()).apply(); }catch(Exception ignored){} }
+    public List<String> learningLog(){ List<String> r=new ArrayList<>(); try{JSONArray a=readLearningLog(); for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i); if(o!=null) r.add(o.optString("event"));}}catch(Exception ignored){} return r; }
+    private JSONArray readLearningLog(){try{return new JSONArray(p.getString(LKEY,"[]"));}catch(Exception e){return new JSONArray();}}
+
     public IngestResult ingest(String raw,double conf){
         IngestResult r=new IngestResult();String[] parts=raw.split("[\n.!?;]+");
         for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}
             List<Item> before=all();boolean sim=false;String bestId="";double bestScore=0;for(Item x:before)if(!"REJECTED".equals(x.status)){double sc=similarity(s,x.text);if(sc>=0.55){sim=true;if(sc>bestScore){bestScore=sc;bestId=x.id;}}}
             String c=add(s,conf,auto(), "CHAT","user message → local claim extraction","auto-ingested");r.added++;if(sim)r.similar++;
-            if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");r.learning.add("Система изменила состояние пары: оба утверждения помечены CONFLICT.");}
-            else if(sim){r.learning.add("Найдено сходство с накопленным знанием.");
+            if(!c.isEmpty()){r.conflicts++;r.messages.add("Конфликт: «"+s+"» ↔ существующий факт");r.learning.add("Система изменила состояние пары: оба утверждения помечены CONFLICT.");appendLearningLog("CONFLICT: "+s);}
+            else if(sim){r.learning.add("Найдено сходство с накопленным знанием.");appendLearningLog("Найдено сходство: "+s);
                 if(reinforce(bestId,s,conf)) r.learning.add("🧠 Повторное подтверждение накопленного знания: support достиг порога, состояние изменено на ACTIVE.");
                 else r.learning.add("Повторное свидетельство записано; до автоматического закрепления нужны дополнительные независимые подтверждения.");
             }
-            else r.learning.add("Новое наблюдение не имеет достаточного сходства; оно осталось отдельным кандидатом.");
+            else { r.learning.add("Новое наблюдение не имеет достаточного сходства; оно осталось отдельным кандидатом."); appendLearningLog("Новое наблюдение → CANDIDATE: "+s); }
         }
         return r;
     }
@@ -205,9 +209,53 @@ public class MemoryStore {
     private JSONArray readHyp(){try{return new JSONArray(p.getString(HKEY,"[]"));}catch(Exception e){return new JSONArray();}}
     private void writeHyp(JSONArray a){p.edit().putString(HKEY,a.toString()).apply();}
     public void learnHypothesis(String id,boolean accepted){JSONArray a=readHyp();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){o.put("status",accepted?"ACTIVE":"REJECTED");o.put("version",Integer.toString(o.optInt("version",1)+1));o.put("learningSignal",accepted?"USER_CONFIRMED":"USER_REJECTED");o.put("updated",System.currentTimeMillis());break;}}catch(Exception ignored){}writeHyp(a);}
-    public int discoverHypotheses(){List<Item> items=all();java.util.HashMap<String,java.util.HashMap<String,java.util.HashSet<String>>> groups=new java.util.HashMap<>();
-        for(int i=0;i<items.size();i++)for(int j=i+1;j<items.size();j++){String[] a=norm(items.get(i).text).split(" "),b=norm(items.get(j).text).split(" ");if(a.length!=b.length||a.length<2)continue;int diff=-1,n=0;for(int k=0;k<a.length;k++)if(!a[k].equals(b[k])){diff=k;n++;}if(n!=1)continue;String key="POS"+diff+"|"+signature(a,diff);java.util.HashMap<String,java.util.HashSet<String>> m=groups.get(key);if(m==null){m=new java.util.HashMap<>();groups.put(key,m);}String pair=a[diff]+" ↔ "+b[diff];m.computeIfAbsent("PAIR",z->new java.util.HashSet<>()).add(pair);}
-        JSONArray h=readHyp();int created=0;for(String key:groups.keySet()){java.util.HashSet<String> pairs=groups.get(key).get("PAIR");if(pairs==null||pairs.size()<2)continue;String rule="повторяющееся противопоставление в шаблоне "+key.substring(key.indexOf("|")+1)+": "+pairs;String hid="h-"+Integer.toHexString(rule.hashCode());boolean exists=false;for(int i=0;i<h.length();i++)if(h.optJSONObject(i)!=null&&hid.equals(h.optJSONObject(i).optString("id"))){exists=true;break;}if(!exists){try{JSONObject o=new JSONObject();o.put("id",hid);o.put("rule",rule);o.put("evidence",pairs.toString());o.put("support",pairs.size());o.put("tests",Math.max(0,pairs.size()-1));o.put("counterexamples",0);o.put("status","CANDIDATE");o.put("version","1");o.put("created",System.currentTimeMillis());h.put(o);created++;}catch(Exception ignored){}}}if(created>0)writeHyp(h);return created;}
+    public int discoverHypotheses(){
+        List<Item> items=all();
+        java.util.HashMap<String,java.util.HashSet<String>> groups=new java.util.HashMap<>();
+        for(int i=0;i<items.size();i++)for(int j=i+1;j<items.size();j++){
+            String[] a=norm(items.get(i).text).split(" "),b=norm(items.get(j).text).split(" ");
+            if(a.length!=b.length||a.length<2)continue;
+            int diff=-1,n=0; for(int k=0;k<a.length;k++)if(!a[k].equals(b[k])){diff=k;n++;}
+            if(n!=1)continue;
+            String key="POS"+diff+"|"+signature(a,diff);
+            java.util.HashSet<String> pairs=groups.get(key);
+            if(pairs==null){pairs=new java.util.HashSet<>();groups.put(key,pairs);}
+            pairs.add(a[diff]+" ↔ "+b[diff]);
+        }
+        JSONArray h=readHyp(); int created=0;
+        for(String key:groups.keySet()){
+            java.util.HashSet<String> pairs=groups.get(key);
+            if(pairs==null||pairs.size()<2)continue;
+            String rule="повторяющееся противопоставление в шаблоне "+key.substring(key.indexOf("|")+1)+": "+pairs;
+            String hid="h-"+Integer.toHexString(rule.hashCode());
+            JSONObject found=null;
+            for(int i=0;i<h.length();i++)if(h.optJSONObject(i)!=null&&hid.equals(h.optJSONObject(i).optString("id"))){found=h.optJSONObject(i);break;}
+            try{
+                if(found==null){
+                    found=new JSONObject(); found.put("id",hid); found.put("rule",rule); found.put("evidence",pairs.toString());
+                    found.put("support",pairs.size()); found.put("tests",Math.max(0,pairs.size()-1)); found.put("counterexamples",0);
+                    found.put("status","CANDIDATE"); found.put("version","1"); found.put("created",System.currentTimeMillis()); h.put(found); created++;
+                }else{
+                    int old=found.optInt("support",0);
+                    found.put("support",Math.max(old,pairs.size()));
+                    found.put("tests",Math.max(0,pairs.size()-1));
+                    found.put("evidence",pairs.toString());
+                    found.put("updated",System.currentTimeMillis());
+                    if(pairs.size()>=3 && found.optInt("tests",0)>=2 && found.optInt("counterexamples",0)==0 && !"REJECTED".equals(found.optString("status"))){
+                        if(!"ACTIVE".equals(found.optString("status"))){
+                            found.put("status","ACTIVE");
+                            found.put("learningSignal","AUTO_VALIDATED_BY_REPEATED_PATTERN");
+                            found.put("learningState","AUTO_TESTED");
+                            found.put("version",Integer.toString(found.optInt("version",1)+1));
+                            appendLearningLog("Гипотеза автоматически подтверждена повторяемым паттерном: "+rule);
+                        }
+                    }
+                }
+            }catch(Exception ignored){}
+        }
+        if(created>0)writeHyp(h); else writeHyp(h);
+        return created;
+    }
     private String signature(String[] a,int diff){StringBuilder s=new StringBuilder();for(int i=0;i<a.length;i++)if(i!=diff)s.append(a[i]).append(" ");return s.toString().trim();}
     public String testHypotheses(){
         StringBuilder out=new StringBuilder();
@@ -229,7 +277,7 @@ public class MemoryStore {
                .append(", конфликтов в памяти=").append(conflicts)
                .append("\n");
         }
-        out.append("\nПроверка не превращает гипотезу в факт автоматически: подтверждение пользователя остаётся отдельным сигналом.");
+        out.append("\nАвтопроверка: гипотеза может перейти в ACTIVE после повторяемого независимого паттерна (не менее 3 пар и 2 проверочных шагов) без обнаруженных контрпримеров. Пользователь остаётся дополнительным сигналом, а не обязательным судьёй.");
         return out.toString();
     }
 
