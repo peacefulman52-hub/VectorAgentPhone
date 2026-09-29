@@ -41,8 +41,7 @@ public final class LearningEngine {
                       .append(h.id)
                       .append(" support=").append(h.support)
                       .append(" tests=").append(h.tests)
-                      .append("
-");
+                      .append("\n");
             }
         }
 
