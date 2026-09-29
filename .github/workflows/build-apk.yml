@@ -22,11 +22,11 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-1.5.0-apk
+          name: VectorAgentPhone-2.0.0-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.5.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v1.5.0" --notes "Autonomous learning cycle before grounded responses." || true
+          gh release create v2.0.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v2.0.0" --notes "Predict -> Observe -> Error -> Update predictive learning core." || true
