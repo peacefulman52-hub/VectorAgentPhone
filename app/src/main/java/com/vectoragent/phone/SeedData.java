@@ -3,7 +3,7 @@ package com.vectoragent.phone;
 public final class SeedData {
     private SeedData() {}
 
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
 
     // Stable starter knowledge. These records are intentionally ordinary, testable
     // observations rather than a hidden language model. The learning engine can
