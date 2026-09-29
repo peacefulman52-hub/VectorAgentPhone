@@ -25,7 +25,7 @@ public class MemoryStore {
     }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
     private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p;
-    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();ensureSeedData();}
+    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);PredictiveLearningEngine.attach(c);ensureKey();ensureSeedData();}
 
     private void ensureSeedData(){
         try{
@@ -158,13 +158,14 @@ public class MemoryStore {
     public String relationBetween(String a,String b){ return detectRelation(a,b); }
 
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
+        PredictiveLearningEngine.predict(text);
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
         try{
             JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
                 String detected=detectRelation(text,oldText); if(contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));}
             }
-            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
+            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();PredictiveLearningEngine.observeAndUpdate(this,text);return conflictWith;
         }catch(Exception ignored){return "";}
     }
     public void appendLearningLog(String event){ try{ JSONArray a=readLearningLog(); JSONObject o=new JSONObject(); o.put("time",System.currentTimeMillis()); o.put("event",event); a.put(o); while(a.length()>300) a.remove(0); p.edit().putString(LKEY,a.toString()).apply(); }catch(Exception ignored){} }
