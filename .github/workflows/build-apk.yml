@@ -1,7 +1,7 @@
 name: Build APK
 on:
   push:
-    branches: [ main, master, learning-engine-v1.1 ]
+    branches: [ main, master, learning-engine-v1.1, vector-2.0-predictive-core ]
   workflow_dispatch:
 permissions:
   contents: write
