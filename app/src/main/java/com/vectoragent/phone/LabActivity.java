@@ -36,7 +36,7 @@ public class LabActivity extends Activity {
     }
 
     void build(){
-        root.addView(tv("🧪 ЛАБОРАТОРИЯ v0.9.1",24));
+        root.addView(tv("🧪 ЛАБОРАТОРИЯ v2.0",24));
         root.addView(tv("Экспериментальный контур: ввод → MemoryStore → изменение состояния → журнал BEFORE/AFTER.\n\nBridge не пишет знания напрямую: он вызывает только публичные операции агента.",13));
 
         root.addView(tv("1. Подать наблюдение",18));
@@ -67,8 +67,9 @@ public class LabActivity extends Activity {
         Button snap=btn("📸 Снять Snapshot"); root.addView(snap);
         snap.setOnClickListener(v->{store.snapshot(); refresh("SNAPSHOT");});
 
-        root.addView(tv("3. Сигнал обучения",18));
-        root.addView(tv("После конфликта выбери ACTIVE для подтверждаемого утверждения. Второе конфликтующее утверждение перейдёт в REJECTED.",12));
+        root.addView(tv("3. Автономный цикл",18));
+        root.addView(tv("После каждого наблюдения Predictive Core автоматически выполняет PREDICT → OBSERVE → ERROR → UPDATE. Кнопки ACTIVE/REJECTED остаются только ручным экспериментальным сигналом.",12));
+        root.addView(tv(PredictiveLearningEngine.summary(),12));
         LinearLayout actions=new LinearLayout(this);
         Button refresh=btn("Обновить"); Button exp=btn("Экспорт журнала"); Button clear=btn("Очистить журнал");
         actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
@@ -105,7 +106,7 @@ public class LabActivity extends Activity {
 
     void refresh(String event){
         if(stateView!=null){
-            stateView.setText("ACTIVE="+store.count("ACTIVE")+"   CANDIDATE="+store.count("CANDIDATE")+
+            stateView.setText(PredictiveLearningEngine.summary()+"\\n\\nACTIVE="+store.count("ACTIVE")+"   CANDIDATE="+store.count("CANDIDATE")+
                     "   CONFLICT="+store.count("CONFLICT")+"   REJECTED="+store.count("REJECTED")+
                     "\n\n"+store.exportJson());
         }
