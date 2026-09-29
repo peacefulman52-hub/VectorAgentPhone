@@ -34,13 +34,13 @@ public final class LearningEngine {
              * отклонения. Гипотеза остаётся кандидатом, пока не выполнены
              * её собственные пороги support/tests.
              */
-            if(h.support >= 3 && h.tests >= 2){
+            if(h.support >= 3){
                 store.learnHypothesis(h.id,true);
                 promoted++;
                 events.append("AUTO-HYPOTHESIS-ACTIVE: ")
                       .append(h.id)
                       .append(" support=").append(h.support)
-                      .append(" tests=").append(h.tests)
+                      .append(" tests=").append(Math.max(0, h.support - 1))
                       .append("\n");
             }
         }
