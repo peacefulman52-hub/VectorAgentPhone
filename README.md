@@ -1,4 +1,4 @@
-# Vector Agent Phone 1.5.0
+# Vector Agent Phone 1.6.0
 
 Android prototype for controlled, provenance-aware memory.
 
@@ -33,3 +33,10 @@ Adds a separate persistent learning model alongside MemoryStore:
 - blind-transfer test on previously unseen entities;
 - learned model state participates in Snapshot/Rollback;
 - learning weights remain separate from the fact memory and text generator.
+
+
+## v1.6.0
+
+The generator now has a controlled exploration branch. It creates synthetic mutations from ACTIVE memory (negation flips, numeric perturbations, word-order noise and uncertainty prefixes), records them in a separate persistent exploration buffer, and uses them as labeled training experiences for the local learner.
+
+Synthetic exploration is never treated as independent evidence and never auto-promotes a factual memory item. Snapshot/Rollback covers the exploration buffer together with memory and learned weights.
