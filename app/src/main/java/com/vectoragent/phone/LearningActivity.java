@@ -6,7 +6,7 @@ import android.graphics.Color;
 import android.widget.*;
 
 public class LearningActivity extends Activity {
-    LearningEngine learner; ExplorationEngine explorer;
+    MemoryStore store; LearningEngine learner; ExplorationEngine explorer;
     LinearLayout root;
     TextView output, explorationOutput;
 
@@ -16,7 +16,7 @@ public class LearningActivity extends Activity {
 
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        learner=new LearningEngine(this); explorer=new ExplorationEngine(this);
+        store=new MemoryStore(this); learner=new LearningEngine(this); explorer=new ExplorationEngine(this);
         ScrollView sc=new ScrollView(this);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18));sc.addView(root);setContentView(sc);
@@ -24,7 +24,7 @@ public class LearningActivity extends Activity {
     }
 
     void build(){
-        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.5",24));
+        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.6",24));
         root.addView(tv("Это отдельный локальный обучаемый слой. Он не генерирует знания: он получает пары наблюдений, делает предсказание, сравнивает его с фактом и меняет веса при ошибке.",13));
 
         Button test=btn("▶ Запустить полный тест: обучение → ошибка → blind transfer");
@@ -40,7 +40,7 @@ public class LearningActivity extends Activity {
         Button explore=btn("🎲 Создать 20 исследовательских вариаций");
         root.addView(explore);
         explorationOutput=tv("",12); explorationOutput.setBackground(bg()); root.addView(explorationOutput);
-        explore.setOnClickListener(v->{int n=explorer.runBatch(new MemoryStore(this),learner,20); renderExploration(n); refresh();});
+        explore.setOnClickListener(v->{int n=store.generateExplorationBatch(20); renderExploration(n); refresh();});
 
         root.addView(tv("Состояние обучаемой модели",18));
         output=tv(learner.summary(),13);output.setBackground(bg());root.addView(output);
