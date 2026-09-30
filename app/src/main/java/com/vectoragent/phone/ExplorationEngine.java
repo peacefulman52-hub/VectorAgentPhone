@@ -94,6 +94,8 @@ public final class ExplorationEngine {
         return out;
     }
 
+    public synchronized String exportState(){return p.getString(KEY,"[]");}
+    public synchronized void importState(String json){try{new JSONArray(json);p.edit().putString(KEY,json).apply();}catch(Exception ignored){}}
     public synchronized void clear(){p.edit().remove(KEY).apply();}
 
     private static final class Mutation{
