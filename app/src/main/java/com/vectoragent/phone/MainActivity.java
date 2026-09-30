@@ -139,9 +139,23 @@ public class MainActivity extends Activity {
         load.setOnClickListener(v->{String u=url.getText().toString().trim();if(!u.startsWith("https://")){result.setText("Нужна HTTPS-ссылка.");return;}result.setText("Загружаю…");new Thread(()->{try{HttpURLConnection c=(HttpURLConnection)new URL(u).openConnection();c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setRequestProperty("User-Agent","VectorAgentPhone/0.9");c.setInstanceFollowRedirects(true);BufferedReader br=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8));StringBuilder raw=new StringBuilder();String line;int chars=0;while((line=br.readLine())!=null&&chars<200000){raw.append(line).append("\\n");chars+=line.length();}br.close();String text=raw.toString().replaceAll("<script[\\s\\S]*?</script>"," ").replaceAll("<style[\\s\\S]*?</style>"," ").replaceAll("<[^>]+>"," ").replaceAll("&nbsp;"," ").replaceAll("\\s+"," ").trim();rememberContext("Источник "+u,text.substring(0,Math.min(text.length(),4000)));MemoryStore.IngestResult ir=store.ingest(text,.55);runOnUiThread(()->{preview.setText(text.substring(0,Math.min(text.length(),12000)));url.setText("");result.setText("Источник обработан: добавлено "+ir.added+", сходств "+ir.similar+", конфликтов "+ir.conflicts+", пропущено "+ir.ignored+".");});}catch(Exception e){runOnUiThread(()->result.setText("Не удалось загрузить источник: "+e.getClass().getSimpleName()));}}).start();});
     }
     void showGenerator(){
-        content.removeAllViews();content.addView(tv("✨ Генератор красивого текста",20));content.addView(tv("КОНТРОЛЬНАЯ ВЕТКА: результат генератора НЕ считается знанием агента и НЕ записывается в MemoryStore. История ввода хранится отдельно лишь как контекст интерфейса.",13));
-        EditText topic=new EditText(this);topic.setHint("Тема / идея / настроение");topic.setMinLines(2);content.addView(topic);Spinner style=new Spinner(this);String[] styles={"Мини-эссе","Лирический текст","Научно-фантастический фрагмент","Притча","Пост"};style.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,styles));content.addView(style);Button go=btn("✨ Сгенерировать");content.addView(go);TextView out=tv("",15);out.setBackground(bg(Color.rgb(247,247,247),16));content.addView(out);
+        content.removeAllViews();content.addView(tv("✨ Генератор / исследование",20));
+        content.addView(tv("Две ветки разделены: «Красивый текст» остаётся генерацией, а «Энтропийное исследование» создаёт синтетические вариации ACTIVE-знаний для обучения. Синтетика хранится отдельно и не становится фактом или независимым источником.",13));
+        EditText topic=new EditText(this);topic.setHint("Тема / идея / настроение");topic.setMinLines(2);content.addView(topic);
+        Spinner style=new Spinner(this);String[] styles={"Мини-эссе","Лирический текст","Научно-фантастический фрагмент","Притча","Пост"};style.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,styles));content.addView(style);
+        Button go=btn("✨ Сгенерировать красивый текст");content.addView(go);TextView out=tv("",15);out.setBackground(bg(Color.rgb(247,247,247),16));content.addView(out);
         go.setOnClickListener(v->{String t=topic.getText().toString().trim();if(t.isEmpty())return;rememberContext("Генератор-ввод",t);out.setText(generatePretty(t,style.getSelectedItem().toString()));topic.setText("");});
+        Button entropy=btn("🎲 Отправить в энтропийное обучение");content.addView(entropy);TextView entropyOut=tv("",12);entropyOut.setBackground(bg(Color.rgb(247,247,247),16));content.addView(entropyOut);
+        entropy.setOnClickListener(v->new Thread(()->{
+            try{
+                ExplorationEngine ex=new ExplorationEngine(this);
+                int n=ex.runBatch(store,new LearningEngine(this),20);
+                java.util.List<ExplorationEngine.Proposal> ps=ex.recent(8);
+                StringBuilder e=new StringBuilder("Создано опытов: ").append(n).append("\n");
+                for(ExplorationEngine.Proposal p:ps)e.append("\n• ").append(p.operator).append(" | expected=").append(p.expected).append(" | predicted=").append(p.predicted).append(" ").append(Math.round(p.probability*100)).append("%\n  ").append(p.seedText).append("\n  ↳ ").append(p.text);
+                runOnUiThread(()->entropyOut.setText(e.toString()));
+            }catch(Exception e){runOnUiThread(()->entropyOut.setText("Ошибка энтропийного обучения: "+e.getMessage()));}
+        }).start());
     }
     String generatePretty(String topic,String style){
         if(style.equals("Лирический текст"))return"Иногда "+topic+" начинается не с ответа, а с вопроса.\\n\\nМы смотрим на привычное и вдруг замечаем в нём неизвестное. И тогда маленькая мысль становится дверью: за ней уже не готовая истина, а пространство, где можно наблюдать, сомневаться и пробовать снова.\\n\\nПусть эта история останется открытой — именно поэтому она интересна.";
