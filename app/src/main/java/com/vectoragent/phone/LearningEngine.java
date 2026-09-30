@@ -49,7 +49,7 @@ public final class LearningEngine {
 
     private static final String PREF="vector_learning_model";
     private static final String MODEL_KEY="model";
-    private static final double LR=0.18;
+    private static final double LR=0.35;
     private final SharedPreferences p;
 
     public LearningEngine(Context c){ p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE); }
@@ -67,7 +67,7 @@ public final class LearningEngine {
             score += m.optDouble("w_"+safe(f),0.0);
         }
         double prob=1.0/(1.0+Math.exp(-score));
-        String label=prob>=0.68?"CONTRADICTS":"NONE";
+        String label=prob>=0.55?"CONTRADICTS":"NONE";
         return new Prediction(label,prob,String.join(", ",features));
     }
 
@@ -82,8 +82,6 @@ public final class LearningEngine {
         else m.put("errors",m.optInt("errors",0)+1);
         if(actual)m.put("positive",m.optInt("positive",0)+1);
         else m.put("negative",m.optInt("negative",0)+1);
-        m.put("bias",m.optDouble("bias",0.0)+delta*0.5);
-
         for(String f:features(a,b)){
             String key="w_"+safe(f);
             double old=m.optDouble(key,0.0);
@@ -108,7 +106,7 @@ public final class LearningEngine {
         s.append("Положительных примеров: ").append(m.optInt("positive",0)).append("\n");
         s.append("Отрицательных примеров: ").append(m.optInt("negative",0)).append("\n");
         s.append("Bias: ").append(String.format(Locale.ROOT,"%.3f",m.optDouble("bias",0.0))).append("\n");
-        String[] known={"NEGATION_FLIP","NEGATION_PREFIX","NUMBER_MISMATCH","SAME_HEAD","SAME_TAIL","SHARED_CONTEXT"};
+        String[] known={"NEGATION_FLIP","NEGATION_PREFIX","NUMBER_MISMATCH","WEAK_CONTEXT"};
         s.append("\nВес признаков:\n");
         for(String f:known)s.append("• ").append(f).append(" = ").append(String.format(Locale.ROOT,"%.3f",m.optDouble("w_"+safe(f),0.0))).append("\n");
         return s.toString();
@@ -152,9 +150,10 @@ public final class LearningEngine {
         return out.toString();
     }
 
-    public synchronized void reset(){
-        p.edit().remove(MODEL_KEY).apply();
-    }
+    public synchronized String exportState(){return p.getString(MODEL_KEY,"{}");}
+    public synchronized void importState(String json){try{new JSONObject(json);p.edit().putString(MODEL_KEY,json).apply();}catch(Exception ignored){}}
+    public synchronized int trials(){return read().optInt("trials",0);}
+    public synchronized void reset(){p.edit().remove(MODEL_KEY).apply();}
 
     private static String safe(String s){return s.replaceAll("[^A-Z0-9_]","_");}
 
@@ -171,16 +170,6 @@ public final class LearningEngine {
         if(!Double.isNaN(numsX)&&!Double.isNaN(numsY)&&Math.abs(numsX-numsY)>1e-9&&sharedContext(ax,by)>=0.45)
             f.add("NUMBER_MISMATCH");
 
-        if(ax.length==by.length){
-            int diff=0,idx=-1;
-            for(int i=0;i<ax.length;i++)if(!ax[i].equals(by[i])){diff++;idx=i;}
-            if(diff==1){
-                if(idx>=1)f.add("SAME_HEAD");
-                if(idx>=0&&idx<ax.length-1)f.add("SAME_TAIL");
-            }
-        }
-
-        if(sharedContext(ax,by)>=0.45)f.add("SHARED_CONTEXT");
         if(f.isEmpty())f.add("WEAK_CONTEXT");
         return new ArrayList<>(f);
     }
