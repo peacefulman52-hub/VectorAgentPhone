@@ -148,9 +148,8 @@ public class MainActivity extends Activity {
         Button entropy=btn("🎲 Отправить в энтропийное обучение");content.addView(entropy);TextView entropyOut=tv("",12);entropyOut.setBackground(bg(Color.rgb(247,247,247),16));content.addView(entropyOut);
         entropy.setOnClickListener(v->new Thread(()->{
             try{
-                ExplorationEngine ex=new ExplorationEngine(this);
-                int n=ex.runBatch(store,new LearningEngine(this),20);
-                java.util.List<ExplorationEngine.Proposal> ps=ex.recent(8);
+                int n=store.generateExplorationBatch(20);
+                java.util.List<ExplorationEngine.Proposal> ps=store.recentExploration(8);
                 StringBuilder e=new StringBuilder("Создано опытов: ").append(n).append("\n");
                 for(ExplorationEngine.Proposal p:ps)e.append("\n• ").append(p.operator).append(" | expected=").append(p.expected).append(" | predicted=").append(p.predicted).append(" ").append(Math.round(p.probability*100)).append("%\n  ").append(p.seedText).append("\n  ↳ ").append(p.text);
                 runOnUiThread(()->entropyOut.setText(e.toString()));
