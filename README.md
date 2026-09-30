@@ -1,4 +1,4 @@
-# Vector Agent Phone 0.9.2
+# Vector Agent Phone 1.5.0
 
 Android prototype for controlled, provenance-aware memory.
 
@@ -22,3 +22,14 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 ## Build
 
 GitHub Actions produces an installable debug APK.
+
+## v1.5.0
+
+Adds a separate persistent learning model alongside MemoryStore:
+
+- prediction of whether two observations are contradictory;
+- error-driven weight updates;
+- persistent learned weights between launches;
+- blind-transfer test on previously unseen entities;
+- learned model state participates in Snapshot/Rollback;
+- learning weights remain separate from the fact memory and text generator.
