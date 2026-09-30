@@ -191,7 +191,7 @@ public class MemoryStore {
                     o.put("predictionFeatures",prediction.features);
                     if(!te.correct) appendLearningLog("MODEL_ERROR: predicted="+(te.predictedPositive?"CONTRADICTS":"NONE")+" actual="+(te.actualPositive?"CONTRADICTS":"NONE")+" | "+text+" ↔ "+oldText); modelPairs++;
                 }
-                String detected=detectRelation(text,oldText); if(directContradiction){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));} else if("CONTRADICTS".equals(prediction.label) && prediction.probability>=0.68 && pairSimilarity>=0.45){if(o.optString("relation").isEmpty())o.put("relation","PREDICTED_CONTRADICTS "+old.optString("id"));}
+                String detected=detectRelation(text,oldText); if(directContradiction){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));} else if("CONTRADICTS".equals(prediction.label) && prediction.probability>=0.55 && pairSimilarity>=0.45){if(o.optString("relation").isEmpty())o.put("relation","PREDICTED_CONTRADICTS "+old.optString("id"));}
             }
             if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
         }catch(Exception ignored){return "";}
@@ -325,8 +325,8 @@ public class MemoryStore {
     public LearningEngine.Prediction predictRelation(String a,String b){return learner.predict(a,b);}
     public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString()+"\nLEARNING_MODEL\n"+learner.summary();}
     public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
-    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).apply();}
-    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();return true;}
+    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).putString("snapshotLearn",learner.exportState()).apply();}
+    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();learner.importState(p.getString("snapshotLearn","{}"));return true;}
     public void saveApiKey(String key){if(key==null)key="";p.edit().putString("apiKey",enc(key)).apply();} public boolean hasApiKey(){return !p.getString("apiKey","").isEmpty();}
     public int count(String status){int n=0;for(Item x:all())if(x.status.equals(status))n++;return n;}
 }
