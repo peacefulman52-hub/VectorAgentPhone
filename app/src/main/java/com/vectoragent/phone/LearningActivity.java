@@ -6,9 +6,9 @@ import android.graphics.Color;
 import android.widget.*;
 
 public class LearningActivity extends Activity {
-    LearningEngine learner;
+    MemoryStore store; LearningEngine learner; ExplorationEngine explorer;
     LinearLayout root;
-    TextView output;
+    TextView output, explorationOutput;
 
     int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
     TextView tv(String s,int z){TextView t=new TextView(this);t.setText(s);t.setTextSize(z);t.setTextColor(Color.rgb(35,35,40));t.setPadding(dp(8),dp(8),dp(8),dp(8));return t;}
@@ -16,7 +16,7 @@ public class LearningActivity extends Activity {
 
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        learner=new LearningEngine(this);
+        store=new MemoryStore(this); learner=new LearningEngine(this); explorer=new ExplorationEngine(this);
         ScrollView sc=new ScrollView(this);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18));sc.addView(root);setContentView(sc);
@@ -24,7 +24,7 @@ public class LearningActivity extends Activity {
     }
 
     void build(){
-        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.5",24));
+        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.6",24));
         root.addView(tv("Это отдельный локальный обучаемый слой. Он не генерирует знания: он получает пары наблюдений, делает предсказание, сравнивает его с фактом и меняет веса при ошибке.",13));
 
         Button test=btn("▶ Запустить полный тест: обучение → ошибка → blind transfer");
@@ -34,6 +34,13 @@ public class LearningActivity extends Activity {
         Button fresh=btn("↻ Сбросить модель");
         root.addView(fresh);
         fresh.setOnClickListener(v->{learner.reset();output.setText("Модель сброшена.");refresh();});
+
+        root.addView(tv("🌪 Энтропийная лаборатория",18));
+        root.addView(tv("Генератор берёт ACTIVE-знания как семена и создаёт синтетические вариации: отрицание, числовой сдвиг, перестановку слов и неопределённость. Эти записи сохраняются отдельно от фактов и не становятся независимыми источниками.",13));
+        Button explore=btn("🎲 Создать 20 исследовательских вариаций");
+        root.addView(explore);
+        explorationOutput=tv("",12); explorationOutput.setBackground(bg()); root.addView(explorationOutput);
+        explore.setOnClickListener(v->{int n=store.generateExplorationBatch(20); renderExploration(n); refresh();});
 
         root.addView(tv("Состояние обучаемой модели",18));
         output=tv(learner.summary(),13);output.setBackground(bg());root.addView(output);
@@ -53,5 +60,17 @@ public class LearningActivity extends Activity {
         g.setColor(Color.rgb(247,247,247));g.setCornerRadius(dp(16));return g;
     }
 
+    void renderExploration(int n){
+        StringBuilder s=new StringBuilder("Создано синтетических опытов: ").append(n).append("\n\n");
+        java.util.List<ExplorationEngine.Proposal> ps=explorer.recent(10);
+        for(ExplorationEngine.Proposal p:ps){
+            s.append("• ").append(p.operator).append(" | expected=").append(p.expected)
+             .append(" | predicted=").append(p.predicted).append(" ")
+             .append(Math.round(p.probability*100)).append("%\n")
+             .append("  ").append(p.seedText).append("\n")
+             .append("  ↳ ").append(p.text).append("\n");
+        }
+        explorationOutput.setText(s.toString());
+    }
     void refresh(){output.setText(learner.summary());}
 }

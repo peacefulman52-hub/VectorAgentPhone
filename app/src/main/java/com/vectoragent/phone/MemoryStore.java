@@ -24,8 +24,8 @@ public class MemoryStore {
         Hypothesis(String id,String rule,String evidence,String status,String version,int support){this.id=id;this.rule=rule;this.evidence=evidence;this.status=status;this.version=version;this.support=support;}
     }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
-    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p; private final LearningEngine learner;
-    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);learner=new LearningEngine(c);ensureKey();ensureSeedData();}
+    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p; private final LearningEngine learner; private final ExplorationEngine exploration;
+    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);learner=new LearningEngine(c);exploration=new ExplorationEngine(c);ensureKey();ensureSeedData();}
 
     private void ensureSeedData(){
         try{
@@ -321,12 +321,14 @@ public class MemoryStore {
 
     public String learningSummary(){return learner.summary();}
     public String blindTransferTest(){return learner.transferTest();}
+    public int generateExplorationBatch(int rounds){return exploration.runBatch(this,learner,rounds);}
+    public java.util.List<ExplorationEngine.Proposal> recentExploration(int max){return exploration.recent(max);}
     public void resetLearningModel(){learner.reset();}
     public LearningEngine.Prediction predictRelation(String a,String b){return learner.predict(a,b);}
     public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString()+"\nLEARNING_MODEL\n"+learner.summary();}
     public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
-    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).putString("snapshotLearn",learner.exportState()).apply();}
-    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();learner.importState(p.getString("snapshotLearn","{}"));return true;}
+    public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).putString("snapshotLearn",learner.exportState()).putString("snapshotExplore",exploration.exportState()).apply();}
+    public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();learner.importState(p.getString("snapshotLearn","{}"));exploration.importState(p.getString("snapshotExplore","[]"));return true;}
     public void saveApiKey(String key){if(key==null)key="";p.edit().putString("apiKey",enc(key)).apply();} public boolean hasApiKey(){return !p.getString("apiKey","").isEmpty();}
     public int count(String status){int n=0;for(Item x:all())if(x.status.equals(status))n++;return n;}
 }
