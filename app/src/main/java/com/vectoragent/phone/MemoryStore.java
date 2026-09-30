@@ -24,8 +24,8 @@ public class MemoryStore {
         Hypothesis(String id,String rule,String evidence,String status,String version,int support){this.id=id;this.rule=rule;this.evidence=evidence;this.status=status;this.version=version;this.support=support;}
     }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
-    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p;
-    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);ensureKey();ensureSeedData();}
+    private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p; private final LearningEngine learner;
+    public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);learner=new LearningEngine(c);ensureKey();ensureSeedData();}
 
     private void ensureSeedData(){
         try{
@@ -181,7 +181,17 @@ public class MemoryStore {
         try{
             JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
-                String detected=detectRelation(text,oldText); if(contradicts(text,oldText)){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));}
+                double pairSimilarity=similarity(text,oldText);
+                boolean directContradiction=contradicts(text,oldText);
+                LearningEngine.Prediction prediction=learner.predict(text,oldText);
+                if(directContradiction || pairSimilarity>=0.45){
+                    LearningEngine.TrainingEvent te=learner.observe(text,oldText,directContradiction);
+                    o.put("predictedRelation",prediction.label);
+                    o.put("predictionConfidence",prediction.probability);
+                    o.put("predictionFeatures",prediction.features);
+                    if(!te.correct) appendLearningLog("MODEL_ERROR: predicted="+(te.predictedPositive?"CONTRADICTS":"NONE")+" actual="+(te.actualPositive?"CONTRADICTS":"NONE")+" | "+text+" ↔ "+oldText);
+                }
+                String detected=detectRelation(text,oldText); if(directContradiction){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));} else if("CONTRADICTS".equals(prediction.label) && prediction.probability>=0.68 && pairSimilarity>=0.45){if(o.optString("relation").isEmpty())o.put("relation","PREDICTED_CONTRADICTS "+old.optString("id"));}
             }
             if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
         }catch(Exception ignored){return "";}
@@ -309,7 +319,11 @@ public class MemoryStore {
         return out.toString();
     }
 
-    public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString();}
+    public String learningSummary(){return learner.summary();}
+    public String blindTransferTest(){return learner.transferTest();}
+    public void resetLearningModel(){learner.reset();}
+    public LearningEngine.Prediction predictRelation(String a,String b){return learner.predict(a,b);}
+    public String exportJson(){return read().toString()+"\nHYPOTHESES\n"+readHyp().toString()+"\nLEARNING_MODEL\n"+learner.summary();}
     public void importJson(String json){try{write(new JSONArray(json));}catch(Exception ignored){}}
     public void snapshot(){p.edit().putString("snapshot",p.getString(KEY,"[]")).putString("snapshotHyp",p.getString(HKEY,"[]")).apply();}
     public boolean rollback(){String s=p.getString("snapshot",null);if(s==null)return false;p.edit().putString(KEY,s).putString(HKEY,p.getString("snapshotHyp","[]")).apply();return true;}
