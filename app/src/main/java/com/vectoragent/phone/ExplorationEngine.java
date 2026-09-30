@@ -141,7 +141,7 @@ public final class ExplorationEngine {
         return null;
     }
 
-    private static String numberJitter(String x){
+    private String numberJitter(String x){
         Matcher m=Pattern.compile("(?<!\\d)(\\d+(?:[.,]\\d+)?)(?!\\d)").matcher(x);
         if(!m.find()) return null;
         try{
@@ -154,7 +154,7 @@ public final class ExplorationEngine {
         }catch(Exception e){return null;}
     }
 
-    private static String swapTwoWords(String x){
+    private String swapTwoWords(String x){
         String[] t=x.split("\\s+");
         if(t.length<4) return x+" — экспериментальный вариант";
         int a=1+random.nextInt(t.length-2);
@@ -165,12 +165,12 @@ public final class ExplorationEngine {
         return s.toString();
     }
 
-    private static String insertUncertainty(String x){
+    private String insertUncertainty(String x){
         String[] p={"Возможно, ","По одной из гипотез, ","Предварительно: "};
         return p[random.nextInt(p.length)]+x;
     }
 
-    private static String syntheticPrefix(String x){
+    private String syntheticPrefix(String x){
         String[] p={"Наблюдение: ","Тестовая версия: ","Гипотетический вариант: "};
         return p[random.nextInt(p.length)]+x;
     }
