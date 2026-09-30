@@ -177,19 +177,19 @@ public class MemoryStore {
     public String relationBetween(String a,String b){ return detectRelation(a,b); }
 
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){
-        JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";
+        JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";int modelPairs=0;
         try{
             JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
             for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
                 double pairSimilarity=similarity(text,oldText);
                 boolean directContradiction=contradicts(text,oldText);
                 LearningEngine.Prediction prediction=learner.predict(text,oldText);
-                if(directContradiction || pairSimilarity>=0.45){
+                if(directContradiction || (pairSimilarity>=0.45 && modelPairs<8)){
                     LearningEngine.TrainingEvent te=learner.observe(text,oldText,directContradiction);
                     o.put("predictedRelation",prediction.label);
                     o.put("predictionConfidence",prediction.probability);
                     o.put("predictionFeatures",prediction.features);
-                    if(!te.correct) appendLearningLog("MODEL_ERROR: predicted="+(te.predictedPositive?"CONTRADICTS":"NONE")+" actual="+(te.actualPositive?"CONTRADICTS":"NONE")+" | "+text+" ↔ "+oldText);
+                    if(!te.correct) appendLearningLog("MODEL_ERROR: predicted="+(te.predictedPositive?"CONTRADICTS":"NONE")+" actual="+(te.actualPositive?"CONTRADICTS":"NONE")+" | "+text+" ↔ "+oldText); modelPairs++;
                 }
                 String detected=detectRelation(text,oldText); if(directContradiction){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));} else if("CONTRADICTS".equals(prediction.label) && prediction.probability>=0.68 && pairSimilarity>=0.45){if(o.optString("relation").isEmpty())o.put("relation","PREDICTED_CONTRADICTS "+old.optString("id"));}
             }
