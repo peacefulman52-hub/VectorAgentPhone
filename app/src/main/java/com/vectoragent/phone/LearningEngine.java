@@ -77,16 +77,18 @@ public final class LearningEngine {
         boolean actual=actualContradiction;
         double delta=LR*((actual?1.0:0.0)-(predicted?1.0:0.0));
         JSONObject m=read();
-        m.put("trials",m.optInt("trials",0)+1);
-        if(predicted==actual)m.put("correct",m.optInt("correct",0)+1);
-        else m.put("errors",m.optInt("errors",0)+1);
-        if(actual)m.put("positive",m.optInt("positive",0)+1);
-        else m.put("negative",m.optInt("negative",0)+1);
-        for(String f:features(a,b)){
-            String key="w_"+safe(f);
-            double old=m.optDouble(key,0.0);
-            m.put(key,Math.max(-4.0,Math.min(4.0,old+delta)));
-        }
+        try {
+            m.put("trials",m.optInt("trials",0)+1);
+            if(predicted==actual)m.put("correct",m.optInt("correct",0)+1);
+            else m.put("errors",m.optInt("errors",0)+1);
+            if(actual)m.put("positive",m.optInt("positive",0)+1);
+            else m.put("negative",m.optInt("negative",0)+1);
+            for(String f:features(a,b)){
+                String key="w_"+safe(f);
+                double old=m.optDouble(key,0.0);
+                m.put(key,Math.max(-4.0,Math.min(4.0,old+delta)));
+            }
+        } catch(Exception ignored) {}
         write(m);
         Prediction after=predict(a,b);
         return new TrainingEvent(predicted,actual,predicted==actual,before.probability,delta);
