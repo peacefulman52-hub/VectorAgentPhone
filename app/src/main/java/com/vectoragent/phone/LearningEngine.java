@@ -73,7 +73,7 @@ public final class LearningEngine {
 
     public synchronized TrainingEvent observe(String a,String b,boolean actualContradiction){
         Prediction before=predict(a,b);
-        boolean predicted=before.probability>=0.50;
+        boolean predicted=before.probability>=0.55;
         boolean actual=actualContradiction;
         double delta=LR*((actual?1.0:0.0)-(predicted?1.0:0.0));
         JSONObject m=read();
@@ -115,39 +115,69 @@ public final class LearningEngine {
     }
 
     public synchronized String transferTest(){
-        String[][] train={
-            {"датчик активен","датчик неактивен"},
-            {"экран яркий","экран неяркий"},
-            {"мотор готов","мотор неготов"}
-        };
-        String[][] negative={
-            {"датчик активен","датчик спокоен"},
-            {"экран яркий","экран большой"}
-        };
+        return cleanBlindTransferTest();
+    }
+
+    /**
+     * Clean experiment: temporarily reset the learner, train only on the fixed
+     * training set, evaluate on a disjoint holdout, then restore the previous
+     * persistent model. Holdout pairs are never passed to observe().
+     */
+    public synchronized String cleanBlindTransferTest(){
+        String backup=exportState();
+        reset();
         StringBuilder out=new StringBuilder();
-        out.append("Фаза 1 — обучение на известных примерах\n");
-        for(String[] pair:train){
-            TrainingEvent ev=observe(pair[0],pair[1],true);
-            out.append("✓ ").append(pair[0]).append(" ↔ ").append(pair[1])
-               .append(" | ошибка=").append(!ev.correct).append("\n");
-        }
-        for(String[] pair:negative){
-            TrainingEvent ev=observe(pair[0],pair[1],false);
-            out.append("✓ отрицательный пример: ").append(pair[0]).append(" ↔ ").append(pair[1])
-               .append(" | ошибка=").append(!ev.correct).append("\n");
-        }
-        out.append("\nФаза 2 — blind transfer на новых сущностях\n");
-        String[][] unseen={
-            {"робот активен","робот неактивен"},
-            {"сервер стабилен","сервер нестабилен"},
-            {"кабель исправен","кабель не исправен"}
-        };
-        for(String[] pair:unseen){
-            Prediction p=predict(pair[0],pair[1]);
-            out.append("\n").append(pair[0]).append(" ↔ ").append(pair[1])
-               .append("\n→ prediction=").append(p.label)
-               .append(", confidence=").append(Math.round(p.probability*100)).append("%")
-               .append("\n→ features=").append(p.features);
+        try{
+            String[][] train={
+                {"датчик активен","датчик неактивен"},
+                {"экран яркий","экран неяркий"},
+                {"мотор готов","мотор неготов"},
+                {"насос включен","насос не включен"}
+            };
+            String[][] negative={
+                {"датчик активен","датчик спокоен"},
+                {"экран яркий","экран большой"},
+                {"мотор готов","мотор горячий"}
+            };
+            int trainCorrect=0;
+            out.append("ЧИСТЫЙ ЭКСПЕРИМЕНТ\\n");
+            out.append("Старая модель временно сохранена и после теста будет восстановлена.\\n\\n");
+            out.append("Фаза 1 — обучение на 7 известных парах\\n");
+            for(String[] pair:train){
+                TrainingEvent ev=observe(pair[0],pair[1],true);
+                if(ev.correct)trainCorrect++;
+            }
+            for(String[] pair:negative){
+                TrainingEvent ev=observe(pair[0],pair[1],false);
+                if(ev.correct)trainCorrect++;
+            }
+            out.append("Обучение: ").append(trainCorrect).append("/7\\n\\n");
+
+            String[][] holdout={
+                {"робот активен","робот неактивен", "CONTRADICTS"},
+                {"сервер стабилен","сервер нестабилен", "CONTRADICTS"},
+                {"кабель исправен","кабель не исправен", "CONTRADICTS"},
+                {"давление в системе 100 кПа","давление в системе 120 кПа", "CONTRADICTS"},
+                {"робот активен","робот спокоен", "NONE"},
+                {"сервер стабилен","сервер быстрый", "NONE"}
+            };
+            int correct=0;
+            out.append("Фаза 2 — НЕЗАВИСИМЫЙ blind transfer (без observe)\\n");
+            for(String[] pair:holdout){
+                Prediction pr=predict(pair[0],pair[1]);
+                boolean ok=pair[2].equals(pr.label);
+                if(ok)correct++;
+                out.append("\\n").append(pair[0]).append(" ↔ ").append(pair[1])
+                   .append("\\n→ expected=").append(pair[2])
+                   .append(" | prediction=").append(pr.label)
+                   .append(" | confidence=").append(Math.round(pr.probability*100)).append("%")
+                   .append(" | ").append(ok?"✓":"✗")
+                   .append("\\n→ features=").append(pr.features);
+            }
+            out.append("\\n\\nРезультат blind transfer: ").append(correct).append("/6 (" ).append(Math.round(100.0*correct/6.0)).append("%)\\n");
+            out.append("Важно: holdout-пары не увеличили счётчик испытаний и не изменили сохранённую модель.");
+        } finally {
+            importState(backup);
         }
         return out.toString();
     }
