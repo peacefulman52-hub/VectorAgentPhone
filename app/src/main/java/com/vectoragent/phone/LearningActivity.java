@@ -27,9 +27,9 @@ public class LearningActivity extends Activity {
         root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.6",24));
         root.addView(tv("Это отдельный локальный обучаемый слой. Он не генерирует знания: он получает пары наблюдений, делает предсказание, сравнивает его с фактом и меняет веса при ошибке.",13));
 
-        Button test=btn("▶ Запустить полный тест: обучение → ошибка → blind transfer");
+        Button test=btn("🧪 Чистый эксперимент: обучение → независимый blind transfer");
         root.addView(test);
-        test.setOnClickListener(v->{output.setText(learner.transferTest());refresh();});
+        test.setOnClickListener(v->{output.setText(learner.cleanBlindTransferTest());refresh();});
 
         Button fresh=btn("↻ Сбросить модель");
         root.addView(fresh);
