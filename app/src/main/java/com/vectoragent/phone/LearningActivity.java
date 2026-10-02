@@ -24,12 +24,12 @@ public class LearningActivity extends Activity {
     }
 
     void build(){
-        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.6",24));
+        root.addView(tv("🧬 САМОСТОЯТЕЛЬНОЕ ОБУЧЕНИЕ v1.6.2",24));
         root.addView(tv("Это отдельный локальный обучаемый слой. Он не генерирует знания: он получает пары наблюдений, делает предсказание, сравнивает его с фактом и меняет веса при ошибке.",13));
 
         Button test=btn("🧪 Чистый эксперимент: обучение → независимый blind transfer");
         root.addView(test);
-        test.setOnClickListener(v->{output.setText(learner.cleanBlindTransferTest());refresh();});
+        test.setOnClickListener(v->{output.setText(learner.cleanBlindTransferTest());});
 
         Button fresh=btn("↻ Сбросить модель");
         root.addView(fresh);
@@ -47,10 +47,14 @@ public class LearningActivity extends Activity {
 
         root.addView(tv("Что именно теперь обучается",18));
         root.addView(tv(
-            "1) Prediction — модель заранее оценивает отношение двух новых наблюдений.\n"+
-            "2) Error-driven update — после получения истинного отношения веса признаков меняются только при ошибке.\n"+
-            "3) Persistent state — веса сохраняются между запусками приложения.\n"+
-            "4) Blind transfer — структурное правило переносится на новые сущности, которых не было в обучении.\n"+
+            "1) Prediction — модель заранее оценивает отношение двух новых наблюдений.
+"+
+            "2) Error-driven update — после получения истинного отношения веса признаков меняются только при ошибке.
+"+
+            "3) Persistent state — веса сохраняются между запусками приложения.
+"+
+            "4) Blind transfer — структурное правило переносится на новые сущности, которых не было в обучении.
+"+
             "5) Model ≠ memory — обучаемые веса хранятся отдельно от MemoryStore.",
             13));
     }
@@ -61,14 +65,19 @@ public class LearningActivity extends Activity {
     }
 
     void renderExploration(int n){
-        StringBuilder s=new StringBuilder("Создано синтетических опытов: ").append(n).append("\n\n");
+        StringBuilder s=new StringBuilder("Создано синтетических опытов: ").append(n).append("
+
+");
         java.util.List<ExplorationEngine.Proposal> ps=explorer.recent(10);
         for(ExplorationEngine.Proposal p:ps){
             s.append("• ").append(p.operator).append(" | expected=").append(p.expected)
              .append(" | predicted=").append(p.predicted).append(" ")
-             .append(Math.round(p.probability*100)).append("%\n")
-             .append("  ").append(p.seedText).append("\n")
-             .append("  ↳ ").append(p.text).append("\n");
+             .append(Math.round(p.probability*100)).append("%
+")
+             .append("  ").append(p.seedText).append("
+")
+             .append("  ↳ ").append(p.text).append("
+");
         }
         explorationOutput.setText(s.toString());
     }
