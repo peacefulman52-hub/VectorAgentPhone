@@ -40,16 +40,16 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v1.5 • память → prediction → ошибка → обновление → blind transfer → grounded-ответ",12));
+        root.addView(tv("v2.0 • память → агенты → спор → эксперимент → результат → обучение",12));
         LinearLayout row1=new LinearLayout(this);row1.setGravity(Gravity.CENTER);
         Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор");
         for(Button b:new Button[]{chatMode,memMode,srcMode,genMode})row1.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
         root.addView(row1);
         LinearLayout row2=new LinearLayout(this);row2.setGravity(Gravity.CENTER);
-        Button setMode=btn("⚙ Настройки"),teacherMode=btn("🎓 Учитель"),learningMode=btn("🧬 Обучение");
-        for(Button b:new Button[]{setMode,teacherMode,learningMode})row2.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
+        Button setMode=btn("⚙ Настройки"),teacherMode=btn("🎓 Учитель"),learningMode=btn("🧬 Обучение"),labMode=btn("🧪 Лаборатория");
+        for(Button b:new Button[]{setMode,teacherMode,learningMode,labMode})row2.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
         root.addView(row2);
-        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));
+        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));
         View line=new View(this);line.setBackgroundColor(Color.LTGRAY);root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
     }
     void showChat(){
