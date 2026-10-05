@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Vector Lab 3 APK
 on:
   push:
     branches: [ main, vector-lab-2.0 ]
@@ -22,10 +22,10 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-2.0.0-apk
+          name: VectorAgentPhone-3.0.0-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v2.0.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v2.0.0" --notes "Exploration Core: generator-driven synthetic experience buffer, error-driven prediction, persistent weights, blind transfer, isolated factual memory." || true
+          gh release create v3.0.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.0.0" --notes "Vector Lab 3.0: persistent research cycles, competing hypotheses, informative experiment selection, persistent cycle history." || true
