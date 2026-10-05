@@ -2,21 +2,21 @@ package com.vectoragent.phone;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.content.Intent;
 import android.graphics.Color;
+import android.content.Intent;
 import android.view.View;
 import android.widget.*;
+import java.nio.charset.StandardCharsets;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.nio.charset.StandardCharsets;
 
 public class LabActivity extends Activity {
     MemoryStore store;
     ExperimentBridge bridge;
+    ResearchEngine research;
     LinearLayout root;
-    TextView stateView, logView;
+    TextView stateView, resultView, historyView;
     EditText input;
-    SeekBar confidence;
 
     int dp(int v){ return (int)(v * getResources().getDisplayMetrics().density + .5f); }
     TextView tv(String s,int size){
@@ -29,6 +29,7 @@ public class LabActivity extends Activity {
         super.onCreate(b);
         store=new MemoryStore(this);
         bridge=new ExperimentBridge(this,store);
+        research=new ResearchEngine(this);
         ScrollView scroll=new ScrollView(this);
         root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18)); scroll.addView(root); setContentView(scroll);
@@ -36,106 +37,92 @@ public class LabActivity extends Activity {
     }
 
     void build(){
-        root.addView(tv("🧪 ЛАБОРАТОРИЯ v0.9.1",24));
-        root.addView(tv("Экспериментальный контур: ввод → MemoryStore → изменение состояния → журнал BEFORE/AFTER.\n\nBridge не пишет знания напрямую: он вызывает только публичные операции агента.",13));
+        root.addView(tv("🔬 VECTOR LAB 3.0",25));
+        root.addView(tv("Постоянный исследовательский контур: наблюдение → конкурирующие гипотезы → выбор информативного эксперимента → новое свидетельство → следующий цикл. Циклы сохраняются на устройстве.",13));
 
-        root.addView(tv("1. Подать наблюдение",18));
-        input=new EditText(this); input.setHint("Например: Вода кипит при 100 °C"); input.setMinLines(2);
+        root.addView(tv("1. Новое наблюдение",18));
+        input=new EditText(this);
+        input.setHint("Например: A=2, B=4, C=6");
+        input.setMinLines(2);
         root.addView(input);
 
-        LinearLayout row=new LinearLayout(this);
-        confidence=new SeekBar(this); confidence.setMax(100); confidence.setProgress(70);
-        row.addView(confidence,new LinearLayout.LayoutParams(0,dp(48),1));
-        TextView cl=tv("70%",14); row.addView(cl,new LinearLayout.LayoutParams(dp(55),-2));
-        confidence.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-            public void onProgressChanged(SeekBar s,int p,boolean f){cl.setText(p+"%");}
-            public void onStartTrackingTouch(SeekBar s){} public void onStopTrackingTouch(SeekBar s){}
-        });
-        root.addView(row);
-
-        Button ingest=btn("➤ Передать агенту");
-        root.addView(ingest);
-        ingest.setOnClickListener(v->{
-            String x=input.getText().toString().trim(); if(x.isEmpty()) return;
-            String id=bridge.runIngest(x,confidence.getProgress()/100.0);
+        Button observe=btn("▶ Запустить исследовательский цикл");
+        root.addView(observe);
+        observe.setOnClickListener(v->{
+            String x=input.getText().toString().trim();
+            if(x.isEmpty()) return;
+            ResearchEngine.Result r=research.observe(x);
+            resultView.setText(r.text);
             input.setText("");
-            refresh("INGEST "+id);
+            refresh();
         });
 
-        root.addView(tv("2. Состояние памяти",18));
-        stateView=tv("",12); root.addView(stateView);
-        Button snap=btn("📸 Снять Snapshot"); root.addView(snap);
-        snap.setOnClickListener(v->{store.snapshot(); refresh("SNAPSHOT");});
+        resultView=tv("",14);
+        resultView.setBackgroundColor(Color.rgb(247,248,250));
+        root.addView(resultView);
 
-        root.addView(tv("3. Сигнал обучения",18));
-        root.addView(tv("После конфликта выбери ACTIVE для подтверждаемого утверждения. Второе конфликтующее утверждение перейдёт в REJECTED.",12));
+        root.addView(tv("2. Память исследователя",18));
+        stateView=tv("",13);
+        root.addView(stateView);
+
+        Button memory=btn("🧠 Открыть полную память");
+        root.addView(memory);
+        memory.setOnClickListener(v->showMemory());
+
+        root.addView(tv("3. История циклов",18));
+        historyView=tv("",12);
+        root.addView(historyView);
+
         LinearLayout actions=new LinearLayout(this);
-        Button refresh=btn("Обновить"); Button exp=btn("Экспорт журнала"); Button clear=btn("Очистить журнал");
+        Button refresh=btn("Обновить");
+        Button export=btn("Экспорт журнала");
         actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
-        actions.addView(exp,new LinearLayout.LayoutParams(0,-2,1));
-        actions.addView(clear,new LinearLayout.LayoutParams(0,-2,1));
+        actions.addView(export,new LinearLayout.LayoutParams(0,-2,1));
         root.addView(actions);
-        refresh.setOnClickListener(v->refresh("REFRESH"));
-        exp.setOnClickListener(v->exportLog());
-        clear.setOnClickListener(v->{bridge.clearLog(); refresh("LOG CLEARED");});
+        refresh.setOnClickListener(v->refresh());
+        export.setOnClickListener(v->exportLog());
 
-        root.addView(tv("Записи памяти — нажми ACTIVE или REJECTED",16));
-        renderItems();
-
-        root.addView(tv("4. Журнал эксперимента",18));
-        logView=tv("",11); root.addView(logView);
-        refresh("READY");
+        root.addView(tv("4. Принцип безопасности",18));
+        root.addView(tv("Гипотеза и внутреннее предсказание не становятся фактом автоматически. Реальное наблюдение имеет отдельную provenance. Поэтому агент может ошибиться, но не должен сам себе превращать воображение в доказательство.",12));
+        refresh();
     }
 
-    void renderItems(){
+    void refresh(){
+        if(stateView!=null)
+            stateView.setText("Циклов: "+research.cycleCount()+
+                    "\nACTIVE="+store.count("ACTIVE")+
+                    " • CANDIDATE="+store.count("CANDIDATE")+
+                    " • CONFLICT="+store.count("CONFLICT")+
+                    " • REJECTED="+store.count("REJECTED")+
+                    " • HYP="+store.hypotheses().size());
+        if(historyView!=null) historyView.setText(research.history());
+    }
+
+    void showMemory(){
+        root.removeAllViews();
+        root.addView(tv("🧠 Память / результаты экспериментов",22));
+        root.addView(tv("Эта память не сбрасывается при переключении экранов. Подтверждение и отклонение остаются ручным контуром для фактов.",13));
         for(MemoryStore.Item x:store.all()){
-            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL);
-            row.addView(tv(x.status+"  "+Math.round(x.confidence*100)+"%\n"+x.text+"\nID: "+x.id,12));
-            LinearLayout buttons=new LinearLayout(this);
-            Button yes=btn("✓ ACTIVE"); Button no=btn("✕ REJECTED");
-            buttons.addView(yes,new LinearLayout.LayoutParams(0,-2,1));
-            buttons.addView(no,new LinearLayout.LayoutParams(0,-2,1));
-            row.addView(buttons); root.addView(row);
-            yes.setOnClickListener(v->{bridge.runLearn(x.id,true); rebuild();});
-            no.setOnClickListener(v->{bridge.runLearn(x.id,false); rebuild();});
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.addView(tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version+"\n"+x.text,13));
+            LinearLayout a=new LinearLayout(this);
+            Button yes=btn("✓ Подтвердить"), no=btn("✕ Отклонить");
+            a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));
+            a.addView(no,new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(a); root.addView(row);
+            yes.setOnClickListener(v->{store.learn(x.id,true);showMemory();});
+            no.setOnClickListener(v->{store.learn(x.id,false);showMemory();});
         }
-    }
-
-    void rebuild(){ recreate(); }
-
-    void refresh(String event){
-        if(stateView!=null){
-            stateView.setText("ACTIVE="+store.count("ACTIVE")+"   CANDIDATE="+store.count("CANDIDATE")+
-                    "   CONFLICT="+store.count("CONFLICT")+"   REJECTED="+store.count("REJECTED")+
-                    "\n\n"+store.exportJson());
-        }
-        if(logView!=null){
-            String raw=bridge.exportLog();
-            try{
-                JSONArray a=new JSONArray(raw);
-                StringBuilder s=new StringBuilder("events="+a.length()+"\n");
-                int start=Math.max(0,a.length()-5);
-                for(int i=start;i<a.length();i++){
-                    JSONObject o=a.getJSONObject(i);
-                    s.append("\n#").append(i+1).append(" ").append(o.optString("type"))
-                     .append(" ").append(o.optString("id")).append("\n");
-                    if("INGEST".equals(o.optString("type"))){
-                        s.append("input: ").append(o.optString("input")).append("\n")
-                         .append("added=").append(o.optInt("added")).append(", conflicts=").append(o.optInt("conflicts"))
-                         .append(", similar=").append(o.optInt("similar")).append("\n");
-                    } else {
-                        s.append("memoryId=").append(o.optString("memoryId"))
-                         .append(", accepted=").append(o.optBoolean("accepted")).append("\n");
-                    }
-                }
-                logView.setText(s.toString());
-            }catch(Exception e){logView.setText(raw);}
-        }
+        Button back=btn("← Назад в исследование");
+        root.addView(back);
+        back.setOnClickListener(v->recreate());
     }
 
     void exportLog(){
         Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        i.setType("application/json"); i.putExtra(Intent.EXTRA_TITLE,"vector-experiment-log-v0.9.1.json");
+        i.setType("application/json");
+        i.putExtra(Intent.EXTRA_TITLE,"vector-lab-3-cycles.json");
         startActivityForResult(i,20);
     }
 
@@ -143,8 +130,9 @@ public class LabActivity extends Activity {
         super.onActivityResult(req,result,data);
         if(req==20 && result==RESULT_OK && data!=null){
             try{
+                String raw=bridge.exportLog();
                 java.io.OutputStream out=getContentResolver().openOutputStream(data.getData());
-                out.write(bridge.exportLog().getBytes(StandardCharsets.UTF_8)); out.close();
+                out.write(raw.getBytes(StandardCharsets.UTF_8)); out.close();
                 Toast.makeText(this,"Журнал экспортирован",Toast.LENGTH_SHORT).show();
             }catch(Exception e){ Toast.makeText(this,"Ошибка экспорта",Toast.LENGTH_SHORT).show(); }
         }
