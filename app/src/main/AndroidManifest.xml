@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />\n    <application android:theme="@style/AppTheme" android:label="Vector Agent Phone" android:allowBackup="false" android:supportsRtl="true">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:theme="@style/AppTheme" android:label="Vector Agent Phone" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name=".MultiAgentActivity" android:exported="false" />
         <activity android:name=".LabActivity" android:exported="false" />
         <activity android:name=".TeacherActivity" android:exported="false" />
         <activity android:name=".LearningActivity" android:exported="false" />
