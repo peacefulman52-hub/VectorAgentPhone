@@ -9,7 +9,7 @@ public final class MultiAgentEngine{
   String c=critic(p,h);bus.send("skeptic","experimenter","CHALLENGE",c);world.addEvent("CHALLENGE","skeptic",c);
   String e=design(p,h,c);bus.send("experimenter","judge","EXPERIMENT",e);world.addEvent("EXPERIMENT","experimenter",e);
   String ev=execute(p);world.addEvent("EVIDENCE","experimenter",ev);String pr=predict(p);String j=judge(h,c,ev,pr);bus.send("judge","researcher","JUDGEMENT",j);world.addEvent("JUDGEMENT","judge",j);
-  double conf=j.startsWith("ПОДТВЕРЖДЕНО")?.95:j.startsWith("ОТКЛОНЕНО")?.1:.5;cycles.save(cycle,p,h,c,e,ev,j,pr,conf);return new Cycle(cycle,h,c,e,ev,j,pr,conf);}
+  double conf=j.startsWith("ПОДТВЕРЖДЕНО")? 0.95 : j.startsWith("ОТКЛОНЕНО") ? 0.1 : 0.5;cycles.save(cycle,p,h,c,e,ev,j,pr,conf);return new Cycle(cycle,h,c,e,ev,j,pr,conf);}
  private double[] nums(String s){Matcher m=Pattern.compile("[-+]?\\d+(?:[.,]\\d+)?").matcher(s.replace(',','.'));ArrayList<Double>x=new ArrayList<>();while(m.find())try{x.add(Double.parseDouble(m.group()));}catch(Exception z){}double[]a=new double[x.size()];for(int i=0;i<a.length;i++)a[i]=x.get(i);return a;}
  private String f(double x){return Math.abs(x-Math.rint(x))<1e-9?Long.toString(Math.round(x)):String.format(Locale.US,"%.4f",x);}
  private String research(String p){double[]a=nums(p);if(a.length>=3){double d=a[1]-a[0],d2=a[2]-a[1];if(Math.abs(d-d2)<1e-9)return"Гипотеза: постоянная разность "+f(d)+". Следующий элемент = "+f(a[2]+d)+".";double r=a[1]/a[0];if(Math.abs(a[0])>1e-12&&Math.abs(r-a[2]/a[1])<1e-9)return"Гипотеза: постоянный множитель "+f(r)+".";}return"Гипотеза: существует повторяемая закономерность; её нужно выразить правилом и проверить.";}
