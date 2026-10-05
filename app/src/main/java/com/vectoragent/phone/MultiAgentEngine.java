@@ -1,85 +1,25 @@
 package com.vectoragent.phone;
-
-import android.content.Context;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.util.Map;
-
-public final class MultiAgentEngine {
-    public static final class Cycle {
-        public final int number;
-        public final String hypothesis, challenge, experiment, judgement;
-        public Cycle(int n,String h,String c,String e,String j){
-            number=n; hypothesis=h; challenge=c; experiment=e; judgement=j;
-        }
-    }
-
-    private final Context context;
-    private final Map<String,AgentProfile> agents;
-    private final AgentBus bus;
-    private final WorldState world;
-    private final MemoryStore memory;
-    private int cycle;
-
-    public MultiAgentEngine(Context c, MemoryStore memory){
-        context=c.getApplicationContext();
-        this.memory=memory;
-        agents=AgentProfile.createDefault(context);
-        bus=new AgentBus(context);
-        world=new WorldState(context);
-        cycle=context.getSharedPreferences("vector_lab_runtime",Context.MODE_PRIVATE).getInt("cycle",0);
-    }
-
-    public synchronized Cycle runCycle(String topic){
-        cycle++;
-        context.getSharedPreferences("vector_lab_runtime",Context.MODE_PRIVATE).edit().putInt("cycle",cycle).apply();
-
-        String seed=(topic==null||topic.trim().isEmpty())?
-                "Найди закономерность в накопленной памяти":topic.trim();
-
-        String hypothesis="Гипотеза: "+seed;
-        bus.send("researcher","skeptic","HYPOTHESIS",hypothesis);
-        world.addEvent("HYPOTHESIS","researcher",hypothesis);
-
-        String challenge="Проверить альтернативу и найти контрпример для: "+hypothesis;
-        bus.send("skeptic","experimenter","CHALLENGE",challenge);
-        world.addEvent("CHALLENGE","skeptic",challenge);
-
-        String experiment="Предложить проверку гипотезы: "+hypothesis;
-        bus.send("experimenter","judge","EXPERIMENT",experiment);
-        world.addEvent("EXPERIMENT","experimenter",experiment);
-
-        String judgement="Пока нет внешнего результата. Состояние: HYPOTHESIS, требуется наблюдение.";
-        bus.send("judge","researcher","JUDGEMENT",judgement);
-        world.addEvent("JUDGEMENT","judge",judgement);
-
-        return new Cycle(cycle,hypothesis,challenge,experiment,judgement);
-    }
-
-    public synchronized String dashboard(){
-        StringBuilder s=new StringBuilder();
-        s.append("Цикл: ").append(cycle).append("\n");
-        s.append("Событий World: ").append(world.size()).append("\n");
-        s.append("Сообщений Bus: ").append(bus.size()).append("\n\n");
-        for(AgentProfile a:agents.values()) s.append("• ").append(a.summary()).append("\n");
-        return s.toString();
-    }
-
-    public synchronized String recentTrace(int max){
-        JSONArray a=bus.recent(max);
-        StringBuilder s=new StringBuilder();
-        for(int i=0;i<a.length();i++) try{
-            JSONObject o=a.getJSONObject(i);
-            s.append("\n").append(o.optString("from")).append(" → ")
-             .append(o.optString("to")).append(" [").append(o.optString("type")).append("]\n")
-             .append(o.optString("payload")).append("\n");
-        }catch(Exception ignored){}
-        return s.length()==0?"Пока сообщений нет.":s.toString();
-    }
-
-    public synchronized void clearRuntime(){
-        bus.clear(); world.clear();
-        cycle=0;
-        context.getSharedPreferences("vector_lab_runtime",Context.MODE_PRIVATE).edit().putInt("cycle",0).apply();
-    }
+import android.content.Context;import org.json.JSONArray;import org.json.JSONObject;import java.util.*;import java.util.regex.*;
+public final class MultiAgentEngine{
+ public static final class Cycle{public final int number;public final String hypothesis,challenge,experiment,evidence,judgement,prediction;public final double confidence;public Cycle(int n,String h,String c,String e,String ev,String j,String p,double x){number=n;hypothesis=h;challenge=c;experiment=e;evidence=ev;judgement=j;prediction=p;confidence=x;}}
+ private final Context context;private final Map<String,AgentProfile> agents;private final AgentBus bus;private final WorldState world;private final CycleStore cycles;private int cycle;
+ public MultiAgentEngine(Context c,MemoryStore m){context=c.getApplicationContext();agents=AgentProfile.createDefault(context);bus=new AgentBus(context);world=new WorldState(context);cycles=new CycleStore(context);cycle=context.getSharedPreferences("vector_lab_runtime",0).getInt("cycle",0);}
+ public synchronized Cycle runCycle(String topic){cycle++;context.getSharedPreferences("vector_lab_runtime",0).edit().putInt("cycle",cycle).apply();String p=topic==null||topic.trim().isEmpty()?"Найди закономерность в накопленной памяти":topic.trim();
+  String h=research(p);bus.send("researcher","skeptic","HYPOTHESIS",h);world.addEvent("HYPOTHESIS","researcher",h);
+  String c=critic(p,h);bus.send("skeptic","experimenter","CHALLENGE",c);world.addEvent("CHALLENGE","skeptic",c);
+  String e=design(p,h,c);bus.send("experimenter","judge","EXPERIMENT",e);world.addEvent("EXPERIMENT","experimenter",e);
+  String ev=execute(p);world.addEvent("EVIDENCE","experimenter",ev);String pr=predict(p);String j=judge(h,c,ev,pr);bus.send("judge","researcher","JUDGEMENT",j);world.addEvent("JUDGEMENT","judge",j);
+  double conf=j.startsWith("ПОДТВЕРЖДЕНО")?.95:j.startsWith("ОТКЛОНЕНО")?.1:.5;cycles.save(cycle,p,h,c,e,ev,j,pr,conf);return new Cycle(cycle,h,c,e,ev,j,pr,conf);}
+ private double[] nums(String s){Matcher m=Pattern.compile("[-+]?\\d+(?:[.,]\\d+)?").matcher(s.replace(',','.'));ArrayList<Double>x=new ArrayList<>();while(m.find())try{x.add(Double.parseDouble(m.group()));}catch(Exception z){}double[]a=new double[x.size()];for(int i=0;i<a.length;i++)a[i]=x.get(i);return a;}
+ private String f(double x){return Math.abs(x-Math.rint(x))<1e-9?Long.toString(Math.round(x)):String.format(Locale.US,"%.4f",x);}
+ private String research(String p){double[]a=nums(p);if(a.length>=3){double d=a[1]-a[0],d2=a[2]-a[1];if(Math.abs(d-d2)<1e-9)return"Гипотеза: постоянная разность "+f(d)+". Следующий элемент = "+f(a[2]+d)+".";double r=a[1]/a[0];if(Math.abs(a[0])>1e-12&&Math.abs(r-a[2]/a[1])<1e-9)return"Гипотеза: постоянный множитель "+f(r)+".";}return"Гипотеза: существует повторяемая закономерность; её нужно выразить правилом и проверить.";}
+ private String critic(String p,String h){double[]a=nums(p);if(a.length>=3){double d=a[1]-a[0],d2=a[2]-a[1];return Math.abs(d-d2)<1e-9?"Скептик: первые переходы согласуются с постоянной разностью "+f(d)+"; проверяем следующий шаг.":"Скептик: первые переходы различаются; правило постоянной разности не подтверждено.";}return"Скептик: недостаточно наблюдений; гипотеза не является фактом.";}
+ private String design(String p,String h,String c){return"Эксперимент: вычислить следующий элемент по правилу гипотезы и сравнить с новым наблюдением; если его нет — выдать проверяемое предсказание.";}
+ private String execute(String p){double[]a=nums(p);if(a.length>=3){double d=a[1]-a[0];return"Наблюдения: "+f(a[0])+", "+f(a[1])+", "+f(a[2])+"; ожидаемый следующий элемент "+f(a[2]+d)+".";}return"Новое наблюдение отсутствует; результатом является предсказание.";}
+ private String predict(String p){double[]a=nums(p);if(a.length>=3){double d=a[1]-a[0];if(Math.abs(d-(a[2]-a[1]))<1e-9)return"D = "+f(a[2]+d);}return"Предсказание: недостаточно данных.";}
+ private String judge(String h,String c,String e,String p){return p.startsWith("D = ")?"ПОДТВЕРЖДЕНО: доступные переходы согласуются с правилом. "+p+" Это рабочая гипотеза, не универсальный закон.":"НЕ ОПРЕДЕЛЕНО: доказательств недостаточно; гипотеза остаётся кандидатом.";}
+ public synchronized String dashboard(){StringBuilder s=new StringBuilder("Цикл: ").append(cycle).append("\nСохранено циклов: ").append(cycles.count()).append("\nСобытий World: ").append(world.size()).append("\nСообщений Bus: ").append(bus.size()).append("\n\n");for(AgentProfile a:agents.values())s.append("• ").append(a.summary()).append("\n");return s.toString();}
+ public synchronized String recentTrace(int n){JSONArray a=bus.recent(n);StringBuilder s=new StringBuilder();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);s.append("\n").append(o.optString("from")).append(" → ").append(o.optString("to")).append(" [").append(o.optString("type")).append("]\n").append(o.optString("payload")).append("\n");}catch(Exception z){}return s.length()==0?"Пока сообщений нет.":s.toString();}
+ public synchronized String recentCycles(int n){StringBuilder s=new StringBuilder();for(String x:cycles.recent(n))s.append("\n").append(x).append("\n");return s.length()==0?"История циклов пуста.":s.toString();}
+ public synchronized void clearRuntime(){bus.clear();world.clear();cycle=0;context.getSharedPreferences("vector_lab_runtime",0).edit().putInt("cycle",0).apply();}
 }
