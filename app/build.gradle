@@ -8,11 +8,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     defaultConfig {
-        applicationId 'com.vectoragent.phone.v08'
+        applicationId 'com.vectoragent.phone'
         minSdk 26
         targetSdk 35
-        versionCode 99
-        targetSdk 35
-        versionName '1.6.2'
+        versionCode 310
+        versionName '3.1.0'
     }
 }
