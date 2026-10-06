@@ -11,8 +11,7 @@ android {
         applicationId 'com.vectoragent.phone.v08'
         minSdk 26
         targetSdk 35
-        versionCode 99
-        targetSdk 35
-        versionName '1.6.2'
+        versionCode 300
+        versionName '3.0.0'
     }
 }

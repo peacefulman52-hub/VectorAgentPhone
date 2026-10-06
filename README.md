@@ -43,3 +43,6 @@ Synthetic exploration is never treated as independent evidence and never auto-pr
 ## v1.6.2
 
 Fixes the clean blind-transfer experiment UI so its results remain visible after the test completes. The test evaluates holdout pairs without training on them and restores the previous persistent model afterward.
+
+
+Vector Lab 2.0 CI trigger.
