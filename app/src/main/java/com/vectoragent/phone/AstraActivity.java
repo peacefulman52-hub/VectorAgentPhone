@@ -259,7 +259,7 @@ public class AstraActivity extends Activity {
 
 
     @Override protected void onDestroy() {
-        if (relay != null) relay.stop();
+        // Remote relay is owned by AccessibilityService and must survive this Activity.
         super.onDestroy();
     }
 
