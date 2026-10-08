@@ -1,8 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <application android:theme="@style/AppTheme" android:label="Vector Agent Phone" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name=".AstraActivity" android:exported="false" />
         <activity android:name=".MultiAgentActivity" android:exported="false" />
         <activity android:name=".LabActivity" android:exported="false" />
+        <service android:name=".AstraAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice"
+                android:resource="@xml/astra_accessibility_service" />
+        </service>
         <activity android:name=".TeacherActivity" android:exported="false" />
         <activity android:name=".LearningActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
