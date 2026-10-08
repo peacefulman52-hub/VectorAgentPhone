@@ -19,9 +19,11 @@ import java.util.Set;
 public class AstraAccessibilityService extends AccessibilityService {
     private static volatile AstraAccessibilityService instance;
     private volatile boolean stopped;
-    private volatile boolean clickPaused;
-    private volatile int clickCount;
-    private volatile int clickCheckpoint = 10;
+    private volatile boolean taskPaused;
+    private volatile int taskClickCount;
+    private volatile int defaultClickCheckpoint = 10;
+    private volatile int taskClickCheckpoint = 10;
+    private volatile String activeTaskId = "";
     private volatile AccessibilityNodeInfo lastExternalRoot;
     private volatile String lastExternalPackage = "";
     private AstraOverlayController overlay;
@@ -37,19 +39,23 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     public static AstraAccessibilityService getInstance() { return instance; }
     public boolean isStopped() { return stopped; }
-    public boolean isClickPaused() { return clickPaused; }
-    public int getClickCount() { return clickCount; }
-    public int getClickCheckpoint() { return clickCheckpoint; }
+    public boolean isTaskPaused() { return taskPaused; }
+    public int getClickCount() { return taskClickCount; }
+    public int getClickCheckpoint() {
+        return activeTaskId.isEmpty() ? defaultClickCheckpoint : taskClickCheckpoint;
+    }
+    public String getActiveTaskId() { return activeTaskId; }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
         stopped = false;
-        clickPaused = false;
-        clickCount = 0;
-        clickCheckpoint = Math.max(1, getSharedPreferences("astra_click_guard", MODE_PRIVATE)
+        taskPaused = false;
+        taskClickCount = 0;
+        defaultClickCheckpoint = Math.max(1, getSharedPreferences("astra_click_guard", MODE_PRIVATE)
                 .getInt("checkpoint", 10));
+        taskClickCheckpoint = defaultClickCheckpoint;
 
         AccessibilityServiceInfo info = getServiceInfo();
         if (info == null) info = new AccessibilityServiceInfo();
@@ -68,10 +74,11 @@ public class AstraAccessibilityService extends AccessibilityService {
         if (event == null) return;
         CharSequence pkg = event.getPackageName();
         String packageName = pkg == null ? "" : pkg.toString();
+        int type = event.getEventType();
 
         if (!packageName.isEmpty() && !packageName.equals(getPackageName())) {
-            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                    event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                    type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
                 AccessibilityNodeInfo root = getRootInActiveWindow();
                 if (root != null) {
                     AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(root);
@@ -82,7 +89,10 @@ public class AstraAccessibilityService extends AccessibilityService {
                 }
                 if (overlay != null) overlay.show();
             }
-        } else if (packageName.equals(getPackageName())) {
+        } else if (packageName.equals(getPackageName()) &&
+                type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // Hide only when Vector itself becomes the foreground app.
+            // Content changes from our own activity must never tear down the overlay.
             if (overlay != null) overlay.hide();
         }
     }
@@ -105,31 +115,55 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     public void stopExecution() {
         stopped = true;
-        clickPaused = true;
+        taskPaused = true;
         if (overlay != null) overlay.update();
     }
 
     public void resumeExecution() {
         stopped = false;
-        clickPaused = false;
-        clickCount = 0;
-        if (overlay != null) overlay.show();
-        if (overlay != null) overlay.update();
+        taskPaused = false;
+        if (overlay != null) {
+            overlay.show();
+            overlay.update();
+        }
     }
 
     public void setClickCheckpoint(int n) {
         int value = n <= 0 ? 10 : Math.min(n, 9999);
-        clickCheckpoint = value;
-        clickCount = 0;
-        clickPaused = false;
+        defaultClickCheckpoint = value;
+        if (activeTaskId.isEmpty()) taskClickCheckpoint = value;
         getSharedPreferences("astra_click_guard", MODE_PRIVATE).edit()
                 .putInt("checkpoint", value).apply();
         if (overlay != null) overlay.update();
     }
 
+    public void prepareTask(String taskId, int requestedCheckpoint) {
+        String id = taskId == null ? "" : taskId.trim();
+        if (id.isEmpty()) return;
+
+        int checkpoint = requestedCheckpoint <= 0 ? defaultClickCheckpoint :
+                Math.min(requestedCheckpoint, 9999);
+
+        if (!id.equals(activeTaskId)) {
+            activeTaskId = id;
+            taskClickCount = 0;
+            taskPaused = false;
+        }
+        taskClickCheckpoint = checkpoint;
+        if (overlay != null) overlay.update();
+    }
+
+    public void endTask() {
+        activeTaskId = "";
+        taskClickCount = 0;
+        taskPaused = false;
+        if (overlay != null) overlay.update();
+    }
+
     public void continueClickBatch() {
-        clickPaused = false;
-        clickCount = 0;
+        if (activeTaskId.isEmpty()) return;
+        taskPaused = false;
+        taskClickCount = 0;
         if (overlay != null) {
             overlay.show();
             overlay.update();
@@ -154,13 +188,17 @@ public class AstraAccessibilityService extends AccessibilityService {
         StringBuilder result = new StringBuilder();
         result.append("Последнее окно: ")
                 .append(lastExternalPackage.isEmpty() ? "неизвестно" : lastExternalPackage)
-                .append("\n")
+                .append("
+")
                 .append(s);
 
         if (!targets.isEmpty()) {
-            result.append("\n\nДоступные CLICK-цели:");
+            result.append("
+
+Доступные CLICK-цели:");
             for (ClickTarget t : targets) {
-                result.append("\n• ").append(t.label).append("  [").append(t.target).append("]");
+                result.append("
+• ").append(t.label).append("  [").append(t.target).append("]");
             }
         }
         return result.toString();
@@ -173,7 +211,8 @@ public class AstraAccessibilityService extends AccessibilityService {
         String line = text != null ? text.toString().trim() : "";
         if (line.isEmpty() && desc != null) line = desc.toString().trim();
         if (!line.isEmpty()) {
-            if (out.length() > 0) out.append("\n");
+            if (out.length() > 0) out.append("
+");
             out.append(line);
         }
         for (int i = 0; i < node.getChildCount(); i++) {
@@ -240,12 +279,27 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     public String click(String target) {
         if (stopped) return "STOP активирован.";
-        if (clickPaused) return "Клики приостановлены. Нажмите ПРОДОЛЖИТЬ.";
+        String q = target == null ? "" : target.trim();
+        if (q.isEmpty()) return "CLICK: цель пуста.";
+        return performClick(q, false);
+    }
+
+    public String clickForTask(String target, String taskId, int requestedCheckpoint) {
+        if (stopped) return "STOP активирован.";
+        prepareTask(taskId, requestedCheckpoint);
+        if (taskPaused) return "Клики приостановлены. Нажмите ПРОДОЛЖИТЬ.";
+        if (activeTaskId.isEmpty()) return "CLICK-задача не определена: отсутствует task_id.";
 
         String q = target == null ? "" : target.trim();
         if (q.isEmpty()) return "CLICK: цель пуста.";
 
+        String result = performClick(q, true);
+        return result;
+    }
+
+    private String performClick(String q, boolean countForTask) {
         boolean success;
+
         if (q.startsWith("@")) {
             success = clickAt(q);
             if (!success) return "Не удалось выполнить координатный CLICK: " + q;
@@ -280,13 +334,13 @@ public class AstraAccessibilityService extends AccessibilityService {
             if (!success) return "Элемент найден, но ACTION_CLICK недоступен: " + q;
         }
 
-        afterSuccessfulClick();
+        if (countForTask) afterSuccessfulTaskClick();
         return "CLICK выполнен: " + q;
     }
 
     public String type(String target, String text) {
         if (stopped) return "STOP активирован.";
-        if (clickPaused) return "Действия приостановлены. Нажмите ПРОДОЛЖИТЬ.";
+        if (taskPaused) return "Действия приостановлены. Нажмите ПРОДОЛЖИТЬ.";
 
         String q = target == null ? "" : target.trim();
         if (q.isEmpty()) return "TYPE: цель пуста.";
@@ -322,7 +376,8 @@ public class AstraAccessibilityService extends AccessibilityService {
         }
 
         Bundle args = new Bundle();
-        args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text == null ? "" : text);
+        args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                text == null ? "" : text);
         boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
         node.recycle();
         root.recycle();
@@ -341,19 +396,21 @@ public class AstraAccessibilityService extends AccessibilityService {
             path.moveTo(x, y);
             GestureDescription.StrokeDescription stroke =
                     new GestureDescription.StrokeDescription(path, 0, 80);
-            GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
+            GestureDescription gesture = new GestureDescription.Builder()
+                    .addStroke(stroke)
+                    .build();
             return dispatchGesture(gesture, null, null);
         } catch (Throwable e) {
             return false;
         }
     }
 
-    private void afterSuccessfulClick() {
-        clickCount++;
+    private void afterSuccessfulTaskClick() {
+        taskClickCount++;
         if (overlay != null) overlay.update();
-        if (clickCount >= clickCheckpoint) {
-            clickPaused = true;
-            if (overlay != null) overlay.showContinuePrompt(clickCount, clickCheckpoint);
+        if (taskClickCount >= taskClickCheckpoint) {
+            taskPaused = true;
+            if (overlay != null) overlay.showContinuePrompt(taskClickCount, taskClickCheckpoint);
         }
     }
 
