@@ -80,10 +80,18 @@ export class AstraQueue {
 
     if (request.method === "POST" && url.pathname === "/v1/result") {
       const body = await safeJson(request);
-      await this.state.storage.put("result:" + (body.command_id || crypto.randomUUID()), {
+      const commandId = body.command_id || crypto.randomUUID();
+      await this.state.storage.put("result:" + commandId, {
         ...body, received_at:new Date().toISOString()
       });
-      return json({ok:true});
+      return json({ok:true, command_id:commandId});
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/result") {
+      const commandId = url.searchParams.get("command_id");
+      if (!commandId) return json({error:"command_id_required"}, 400);
+      const result = await this.state.storage.get("result:" + commandId);
+      return result ? json(result) : new Response(null, {status:204});
     }
 
     return json({error:"not_found"}, 404);
