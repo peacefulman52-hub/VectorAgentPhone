@@ -14,7 +14,10 @@ public class AstraActivity extends Activity {
     private AstraBridge bridge;
     private LinearLayout root;
     private TextView status, result, logView;
-    private EditText target, value;
+    private EditText target, value, relayUrl, relayDevice, relayToken;
+    private TextView relayStatus, pending;
+    private AstraRelayClient relay;
+    private android.content.SharedPreferences relayPrefs;
 
     int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
     TextView tv(String s, float z) {
@@ -27,6 +30,12 @@ public class AstraActivity extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         bridge = new AstraBridge(this);
+        relayPrefs = getSharedPreferences("astra_link", MODE_PRIVATE);
+        relay = new AstraRelayClient(new AstraRelayClient.Listener() {
+            @Override public void onStatus(String s) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay: " + s); }); }
+            @Override public void onCommand(JSONObject command) { runOnUiThread(() -> handleRemoteCommand(command)); }
+            @Override public void onError(String error) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay ERROR: " + error); }); }
+        });
         ScrollView scroll = new ScrollView(this);
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18)); scroll.addView(root);
@@ -126,6 +135,36 @@ public class AstraActivity extends Activity {
             try { bridge.resume(); result.setText("Выполнение возобновлено."); }
             catch (Throwable e) { result.setText("RESUME error: " + e.getMessage()); }
             refresh();
+        });
+
+        root.addView(tv("Astra Link — управление через relay", 18));
+        root.addView(tv("Первый этап работает пока открыт Astra. Команды из relay исполняются автоматически только после включения ARM. Для опасных действий оставляем requires_confirmation.", 12));
+
+        relayUrl = new EditText(this); relayUrl.setHint("Relay URL, например https://astra-link.example.workers.dev");
+        relayDevice = new EditText(this); relayDevice.setHint("Device ID");
+        relayToken = new EditText(this); relayToken.setHint("Token");
+        relayToken.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        root.addView(relayUrl); root.addView(relayDevice); root.addView(relayToken);
+
+        LinearLayout relayButtons = new LinearLayout(this);
+        Button connect = btn("🔗 CONNECT");
+        Button disconnect = btn("⛔ DISCONNECT");
+        Button arm = btn("🔐 ARM");
+        relayButtons.addView(connect, new LinearLayout.LayoutParams(0,-2,1));
+        relayButtons.addView(disconnect, new LinearLayout.LayoutParams(0,-2,1));
+        relayButtons.addView(arm, new LinearLayout.LayoutParams(0,-2,1));
+        root.addView(relayButtons);
+        relayStatus = tv("Relay: OFF", 13); root.addView(relayStatus);
+        pending = tv("Нет удалённых команд.", 13); root.addView(pending);
+
+        loadRelaySettings();
+        connect.setOnClickListener(v -> connectRelay());
+        disconnect.setOnClickListener(v -> { relay.stop(); refreshRelayStatus(); });
+        arm.setOnClickListener(v -> {
+            boolean armed = relayPrefs.getBoolean("armed", false);
+            relayPrefs.edit().putBoolean("armed", !armed).apply();
+            arm.setText(!armed ? "🔓 DISARM" : "🔐 ARM");
+            refreshRelayStatus();
         });
 
         root.addView(tv("Журнал действий", 18));
