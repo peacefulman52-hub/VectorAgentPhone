@@ -284,6 +284,51 @@ public class AstraAccessibilityService extends AccessibilityService {
         return "CLICK выполнен: " + q;
     }
 
+    public String type(String target, String text) {
+        if (stopped) return "STOP активирован.";
+        if (clickPaused) return "Действия приостановлены. Нажмите ПРОДОЛЖИТЬ.";
+
+        String q = target == null ? "" : target.trim();
+        if (q.isEmpty()) return "TYPE: цель пуста.";
+
+        AccessibilityNodeInfo root = obtainExternalRoot();
+        if (root == null) {
+            root = lastExternalRoot == null ? null : AccessibilityNodeInfo.obtain(lastExternalRoot);
+        }
+        if (root == null) return "Экран недоступен.";
+
+        AccessibilityNodeInfo node = find(root, q);
+        if (node == null) {
+            root.recycle();
+            return "Поле не найдено: " + q;
+        }
+
+        if (!node.isEditable()) {
+            AccessibilityNodeInfo parent = node.getParent();
+            if (parent != null) {
+                if (parent.isEditable()) {
+                    node.recycle();
+                    node = parent;
+                } else {
+                    parent.recycle();
+                }
+            }
+        }
+
+        if (!node.isEditable()) {
+            node.recycle();
+            root.recycle();
+            return "Поле не редактируемое: " + q;
+        }
+
+        Bundle args = new Bundle();
+        args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text == null ? "" : text);
+        boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+        node.recycle();
+        root.recycle();
+        return ok ? "TYPE выполнен." : "Не удалось установить текст.";
+    }
+
     private boolean clickAt(String value) {
         try {
             String p = value.substring(1);
