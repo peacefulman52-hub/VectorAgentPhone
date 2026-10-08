@@ -100,23 +100,21 @@ public final class AstraBridge {
 
         Uri uri = Uri.parse(u);
 
+        // Do not gate execution on resolveActivity(): Android package-visibility
+        // rules can make it return null even when a browser is actually able to
+        // handle ACTION_VIEW. Try launching directly and use the thrown exception
+        // as the real availability check.
         try {
-            PackageManager pm = context.getPackageManager();
             Intent chrome = new Intent(Intent.ACTION_VIEW, uri);
             chrome.setPackage("com.android.chrome");
-            if (chrome.resolveActivity(pm) != null) {
-                startActivity(chrome);
-                return "Chrome открыт: " + u;
-            }
+            startActivity(chrome);
+            return "Chrome открыт: " + u;
         } catch (Throwable ignored) {
-            // Fallback below.
+            // Fall back to the system browser below.
         }
 
         try {
             Intent browser = new Intent(Intent.ACTION_VIEW, uri);
-            if (browser.resolveActivity(context.getPackageManager()) == null) {
-                return "На телефоне нет приложения для открытия ссылок.";
-            }
             startActivity(browser);
             return "Открыт браузер: " + u;
         } catch (Throwable e) {

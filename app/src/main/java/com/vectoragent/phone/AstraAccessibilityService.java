@@ -75,14 +75,23 @@ public class AstraAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         AccessibilityNodeInfo node = find(root, target);
         if (node == null) return "Элемент не найден: " + target;
-        if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+        // Some accessibility nodes expose ACTION_CLICK without advertising
+        // isClickable(), so try the action itself first.
+        if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             return "CLICK выполнен: " + target;
         }
+
+        // If the matched text belongs to a child label/icon, walk up the
+        // hierarchy and try clickable/action-capable parents.
         AccessibilityNodeInfo parent = node.getParent();
-        if (parent != null && parent.isClickable() &&
-                parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            return "CLICK выполнен через родительский узел: " + target;
+        int depth = 0;
+        while (parent != null && depth++ < 8) {
+            if (parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                return "CLICK выполнен через родительский узел: " + target;
+            }
+            parent = parent.getParent();
         }
+
         return "Элемент найден, но ACTION_CLICK недоступен: " + target;
     }
 
