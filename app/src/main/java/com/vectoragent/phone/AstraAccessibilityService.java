@@ -76,23 +76,21 @@ public class AstraAccessibilityService extends AccessibilityService {
         String packageName = pkg == null ? "" : pkg.toString();
         int type = event.getEventType();
 
-        if (!packageName.isEmpty() && !packageName.equals(getPackageName())) {
-            if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                    type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-                AccessibilityNodeInfo root = getRootInActiveWindow();
-                if (root != null) {
-                    AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(root);
-                    AccessibilityNodeInfo old = lastExternalRoot;
-                    lastExternalRoot = copy;
-                    lastExternalPackage = packageName;
-                    if (old != null) old.recycle();
-                }
-                if (overlay != null) overlay.show();
+        if (isChromePackage(packageName) &&
+                (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                 type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(root);
+                AccessibilityNodeInfo old = lastExternalRoot;
+                lastExternalRoot = copy;
+                lastExternalPackage = packageName;
+                if (old != null) old.recycle();
             }
-        } else if (packageName.equals(getPackageName()) &&
-                type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Hide only when Vector itself becomes the foreground app.
-            // Content changes from our own activity must never tear down the overlay.
+            if (overlay != null) overlay.show();
+        } else if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // Vector overlay is intended for Chrome only. Hide it for every other
+            // foreground application without detaching the WindowManager window.
             if (overlay != null) overlay.hide();
         }
     }
