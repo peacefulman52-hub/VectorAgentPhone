@@ -122,7 +122,8 @@ public final class AstraRelayClient {
 
     private HttpURLConnection open(String url, String method) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setRequestMethod(method);\n        c.setConnectTimeout(7000);
+        c.setRequestMethod(method);
+        c.setConnectTimeout(7000);
         c.setReadTimeout(10000);
         c.setRequestProperty("Authorization", "Bearer " + token);
         c.setRequestProperty("Accept", "application/json");
