@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Vector Agent Phone</string>
+    <string name="astra_accessibility_description">Astra Bridge читает доступные элементы активного окна и выполняет только явно запрошенные команды.</string>
+</resources>
