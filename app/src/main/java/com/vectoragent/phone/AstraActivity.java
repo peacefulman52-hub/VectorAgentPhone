@@ -257,38 +257,6 @@ public class AstraActivity extends Activity {
                 "    ARM: " + (armed ? "ON" : "OFF"));
     }
 
-    private void handleRemoteCommand(JSONObject json) {
-        try {
-            String commandId = json.optString("command_id", "");
-            String action = json.optString("action", "READ_SCREEN").toUpperCase();
-            String targetText = json.optString("target", "");
-            String valueText = json.optString("value", "");
-            boolean confirmation = json.optBoolean("requires_confirmation", true);
-
-            pending.setText("Удалённая команда: " + action + "  " + targetText +
-                    (confirmation ? "  [CONFIRM]" : "  [AUTO]"));
-
-            boolean armed = relayPrefs.getBoolean("armed", false);
-            if (!armed || confirmation) {
-                result.setText("Ожидает ARM/подтверждения:\n" + json.toString(2));
-                return;
-            }
-
-            AstraCommand.Action act = AstraCommand.Action.valueOf(action);
-            String out = bridge.execute(new AstraCommand(act, targetText, valueText, false));
-            boolean ok = !out.startsWith("ASTRA ERROR") && !out.contains("не подключён");
-            relay.sendResult(commandId, ok, out);
-            result.setText("Relay EXECUTE:\n" + out);
-            pending.setText("Удалённая команда выполнена: " + commandId);
-            refresh();
-        } catch (Throwable e) {
-            String err = "Remote command error: " + e.getClass().getSimpleName() +
-                    " — " + String.valueOf(e.getMessage());
-            result.setText(err);
-            try { relay.sendResult(json == null ? "" : json.optString("command_id",""), false, err); }
-            catch (Throwable ignored) {}
-        }
-    }
 
     @Override protected void onDestroy() {
         if (relay != null) relay.stop();
