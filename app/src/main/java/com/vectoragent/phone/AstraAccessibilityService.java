@@ -10,6 +10,8 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +29,7 @@ public class AstraAccessibilityService extends AccessibilityService {
     private volatile AccessibilityNodeInfo lastExternalRoot;
     private volatile String lastExternalPackage = "";
     private AstraOverlayController overlay;
+    private AstraRelayClient relay;
 
     public static final class ClickTarget {
         public final String label;
@@ -67,6 +70,7 @@ public class AstraAccessibilityService extends AccessibilityService {
         setServiceInfo(info);
 
         overlay = new AstraOverlayController(this);
+        startRelayFromPrefs();
     }
 
     @Override
@@ -103,6 +107,7 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        stopRelay();
         if (overlay != null) overlay.destroy();
         AccessibilityNodeInfo old = lastExternalRoot;
         lastExternalRoot = null;
@@ -168,6 +173,84 @@ public class AstraAccessibilityService extends AccessibilityService {
         }
     }
 
+    public boolean isRelayRunning() {
+        return relay != null && relay.isRunning();
+    }
+
+    public void refreshRelayFromPrefs() {
+        stopRelay();
+        startRelayFromPrefs();
+    }
+
+    public void stopRelay() {
+        AstraRelayClient r = relay;
+        relay = null;
+        if (r != null) r.stop();
+    }
+
+    private void startRelayFromPrefs() {
+        try {
+            android.content.SharedPreferences prefs =
+                    getSharedPreferences("astra_link", MODE_PRIVATE);
+            if (!prefs.getBoolean("armed", false)) return;
+
+            String url = prefs.getString("url", "").trim();
+            String device = prefs.getString("device", "").trim();
+            String token = prefs.getString("token", "").trim();
+            if (url.isEmpty() || device.isEmpty() || token.isEmpty()) return;
+
+            AstraRelayClient r = new AstraRelayClient(new AstraRelayClient.Listener() {
+                @Override public void onStatus(String status) { }
+                @Override public void onError(String error) { }
+                @Override public void onCommand(JSONObject command) {
+                    handleRemoteCommand(command);
+                }
+            });
+            r.configure(url, device, token);
+            relay = r;
+            r.start();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void handleRemoteCommand(JSONObject json) {
+        if (json == null) return;
+        AstraRelayClient r = relay;
+        if (r == null) return;
+
+        String commandId = json.optString("command_id", "");
+        try {
+            boolean armed = getSharedPreferences("astra_link", MODE_PRIVATE)
+                    .getBoolean("armed", false);
+            if (!armed) {
+                r.sendResult(commandId, false, "Device не ARM: команда отклонена.");
+                return;
+            }
+
+            String action = json.optString("action", "READ_SCREEN").toUpperCase(Locale.ROOT);
+            String target = json.optString("target", "");
+            String value = json.optString("value", "");
+            String taskId = json.optString("task_id", "");
+            int clickLimit = Math.max(0, json.optInt("click_limit", 0));
+            boolean confirmation = json.optBoolean("requires_confirmation", true);
+
+            AstraCommand.Action act = AstraCommand.Action.valueOf(action);
+            AstraCommand command = new AstraCommand(
+                    act, target, value, confirmation, taskId, clickLimit);
+
+            String out = new AstraBridge(this).execute(command);
+            boolean ok = !out.startsWith("ASTRA ERROR") &&
+                    !out.contains("не подключён") &&
+                    !out.startsWith("Элемент не найден") &&
+                    !out.startsWith("Экран недоступен.");
+            r.sendResult(commandId, ok, out);
+        } catch (Throwable e) {
+            String err = "Remote command error: " + e.getClass().getSimpleName() +
+                    " — " + String.valueOf(e.getMessage());
+            r.sendResult(commandId, false, err);
+        }
+    }
+
     public String readScreen() {
         AccessibilityNodeInfo root = obtainExternalRoot();
         if (root == null) {
@@ -186,8 +269,7 @@ public class AstraAccessibilityService extends AccessibilityService {
         StringBuilder result = new StringBuilder();
         result.append("Последнее окно: ")
                 .append(lastExternalPackage.isEmpty() ? "неизвестно" : lastExternalPackage)
-                .append("
-")
+                .append("\n")
                 .append(s);
 
         if (!targets.isEmpty()) {
@@ -209,8 +291,7 @@ public class AstraAccessibilityService extends AccessibilityService {
         String line = text != null ? text.toString().trim() : "";
         if (line.isEmpty() && desc != null) line = desc.toString().trim();
         if (!line.isEmpty()) {
-            if (out.length() > 0) out.append("
-");
+            if (out.length() > 0) out.append("\n");
             out.append(line);
         }
         for (int i = 0; i < node.getChildCount(); i++) {
