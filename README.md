@@ -46,3 +46,7 @@ Fixes the clean blind-transfer experiment UI so its results remain visible after
 
 
 Vector Lab 2.0 CI trigger.
+
+
+## Astra Bridge 3.2
+Controlled Android execution layer: AccessibilityService, explicit OPEN_URL/CLICK/TYPE/READ_SCREEN commands, audit log, STOP/RESUME. Commands are executed only from the Astra Bridge UI in this prototype.
