@@ -3,10 +3,8 @@ package com.vectoragent.phone;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.view.Gravity;
 import android.widget.*;
 
 import org.json.JSONObject;
@@ -42,7 +40,7 @@ public class AstraActivity extends Activity {
     }
 
     void build() {
-        root.addView(tv("🛰 ASTRA BRIDGE 0.1", 26));
+        root.addView(tv("🛰 ASTRA BRIDGE 0.2", 26));
         root.addView(tv("Безопасный исполнительный слой телефона. Команды проходят через явный EXECUTE; действия пишутся в журнал.", 13));
 
         status = tv("", 15); root.addView(status);
@@ -72,17 +70,18 @@ public class AstraActivity extends Activity {
         root.addView(propose); root.addView(execute);
 
         propose.setOnClickListener(v -> {
-            String a = action.getText().toString().trim().toUpperCase();
-            if (a.isEmpty()) a = "READ_SCREEN";
             try {
+                String a = action.getText().toString().trim().toUpperCase();
+                if (a.isEmpty()) a = "READ_SCREEN";
                 AstraCommand.Action.valueOf(a);
                 JSONObject o = new JSONObject();
                 o.put("action", a); o.put("target", target.getText().toString().trim());
                 o.put("value", value.getText().toString());
                 o.put("requires_confirmation", true);
                 result.setText("Предложенная команда:\n" + bridge.proposedCommand(o));
-            } catch (Exception e) {
-                result.setText("Неизвестное действие: " + a);
+            } catch (Throwable e) {
+                result.setText("Ошибка формирования команды: " + e.getClass().getSimpleName() +
+                        " — " + String.valueOf(e.getMessage()));
             }
         });
 
@@ -94,8 +93,10 @@ public class AstraActivity extends Activity {
                 AstraCommand cmd = new AstraCommand(act, target.getText().toString().trim(), value.getText().toString(), true);
                 result.setText("Результат:\n" + bridge.execute(cmd));
                 refresh();
-            } catch (Exception e) {
-                result.setText("Ошибка команды: " + e.getMessage());
+            } catch (Throwable e) {
+                result.setText("Ошибка EXECUTE: " + e.getClass().getSimpleName() +
+                        " — " + String.valueOf(e.getMessage()));
+                refresh();
             }
         });
 
@@ -108,15 +109,24 @@ public class AstraActivity extends Activity {
         quick.addView(chrome); quick.addView(read); quick.addView(stop); quick.addView(resume);
         root.addView(quick);
 
-        chrome.setOnClickListener(v -> {
-            AstraCommand cmd = new AstraCommand(AstraCommand.Action.OPEN_URL,
-                    "https://github.com/peacefulman52-hub/VectorAgentPhone", "", true);
-            result.setText(bridge.execute(cmd)); refresh();
+        chrome.setOnClickListener(v -> executeQuick(new AstraCommand(
+                AstraCommand.Action.OPEN_URL,
+                "https://github.com/peacefulman52-hub/VectorAgentPhone", "", true)));
+
+        read.setOnClickListener(v -> executeQuick(new AstraCommand(
+                AstraCommand.Action.READ_SCREEN, "", "", true)));
+
+        stop.setOnClickListener(v -> {
+            try { bridge.stop(); result.setText("STOP активирован."); }
+            catch (Throwable e) { result.setText("STOP error: " + e.getMessage()); }
+            refresh();
         });
-        read.setOnClickListener(v -> { result.setText(bridge.execute(
-                new AstraCommand(AstraCommand.Action.READ_SCREEN,"","",true))); refresh(); });
-        stop.setOnClickListener(v -> { bridge.stop(); result.setText("STOP активирован."); refresh(); });
-        resume.setOnClickListener(v -> { bridge.resume(); result.setText("Выполнение возобновлено."); refresh(); });
+
+        resume.setOnClickListener(v -> {
+            try { bridge.resume(); result.setText("Выполнение возобновлено."); }
+            catch (Throwable e) { result.setText("RESUME error: " + e.getMessage()); }
+            refresh();
+        });
 
         root.addView(tv("Журнал действий", 18));
         logView = tv("", 12); root.addView(logView);
@@ -124,16 +134,31 @@ public class AstraActivity extends Activity {
         clear.setOnClickListener(v -> { bridge.clearLog(); refresh(); });
     }
 
+    private void executeQuick(AstraCommand cmd) {
+        try {
+            String value = bridge.execute(cmd);
+            result.setText("Результат:\n" + value);
+        } catch (Throwable e) {
+            result.setText("ASTRA crash guard: " + e.getClass().getSimpleName() +
+                    " — " + String.valueOf(e.getMessage()));
+        }
+        refresh();
+    }
+
     void refresh() {
         if (status == null) return;
-        String service = bridge.isServiceConnected() ? "CONNECTED" : "OFF";
-        String mode = bridge.isStopped() ? "STOPPED" : "READY";
-        status.setText("Service: " + service + "    Mode: " + mode + "\n" +
-                "Логов: " + bridge.logSize());
+        try {
+            String service = bridge.isServiceConnected() ? "CONNECTED" : "OFF";
+            String mode = bridge.isStopped() ? "STOPPED" : "READY";
+            status.setText("Service: " + service + "    Mode: " + mode + "\n" +
+                    "Логов: " + bridge.logSize());
 
-        List<String> rows = bridge.recentLog(12);
-        StringBuilder s = new StringBuilder();
-        for (String x : rows) s.append("• ").append(x).append("\n");
-        logView.setText(s.length() == 0 ? "Пока действий нет." : s.toString());
+            List<String> rows = bridge.recentLog(12);
+            StringBuilder s = new StringBuilder();
+            for (String x : rows) s.append("• ").append(x).append("\n");
+            logView.setText(s.length() == 0 ? "Пока действий нет." : s.toString());
+        } catch (Throwable e) {
+            status.setText("ASTRA UI ERROR: " + e.getClass().getSimpleName());
+        }
     }
 }
