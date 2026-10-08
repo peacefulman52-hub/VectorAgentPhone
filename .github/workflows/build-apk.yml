@@ -22,10 +22,10 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-3.3.2-apk
+          name: VectorAgentPhone-3.3.3-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.3.2 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.3.2" --notes "Astra Bridge URL launch and Accessibility CLICK robustness fixes." || true
+          gh release create v3.3.3 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.3.3" --notes "Astra Bridge remembers the last external window and keeps the action journal collapsed by default." || true
