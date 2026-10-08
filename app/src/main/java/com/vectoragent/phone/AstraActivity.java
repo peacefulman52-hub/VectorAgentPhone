@@ -31,11 +31,6 @@ public class AstraActivity extends Activity {
         super.onCreate(b);
         bridge = new AstraBridge(this);
         relayPrefs = getSharedPreferences("astra_link", MODE_PRIVATE);
-        relay = new AstraRelayClient(new AstraRelayClient.Listener() {
-            @Override public void onStatus(String s) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay: " + s); }); }
-            @Override public void onCommand(JSONObject command) { runOnUiThread(() -> handleRemoteCommand(command)); }
-            @Override public void onError(String error) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay ERROR: " + error); }); }
-        });
         ScrollView scroll = new ScrollView(this);
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18)); scroll.addView(root);
@@ -160,10 +155,17 @@ public class AstraActivity extends Activity {
 
         loadRelaySettings();
         connect.setOnClickListener(v -> connectRelay());
-        disconnect.setOnClickListener(v -> { relay.stop(); refreshRelayStatus(); });
+        disconnect.setOnClickListener(v -> {
+            relayPrefs.edit().putBoolean("armed", false).apply();
+            AstraAccessibilityService svc = AstraAccessibilityService.getInstance();
+            if (svc != null) svc.stopRelay();
+            refreshRelayStatus();
+        });
         arm.setOnClickListener(v -> {
             boolean armed = relayPrefs.getBoolean("armed", false);
             relayPrefs.edit().putBoolean("armed", !armed).apply();
+            AstraAccessibilityService svc = AstraAccessibilityService.getInstance();
+            if (svc != null) svc.refreshRelayFromPrefs();
             arm.setText(!armed ? "🔓 DISARM" : "🔐 ARM");
             refreshRelayStatus();
         });
@@ -231,16 +233,27 @@ public class AstraActivity extends Activity {
         String url = relayUrl.getText().toString().trim();
         String device = relayDevice.getText().toString().trim();
         String token = relayToken.getText().toString().trim();
-        relayPrefs.edit().putString("url", url).putString("device", device).putString("token", token).apply();
-        relay.configure(url, device, token);
-        relay.start();
+        relayPrefs.edit().putString("url", url)
+                .putString("device", device)
+                .putString("token", token)
+                .apply();
+
+        AstraAccessibilityService svc = AstraAccessibilityService.getInstance();
+        if (svc == null) {
+            refreshRelayStatus();
+            relayStatus.setText("Relay: включите Accessibility Service");
+            return;
+        }
+        svc.refreshRelayFromPrefs();
         refreshRelayStatus();
     }
 
     private void refreshRelayStatus() {
         if (relayStatus == null) return;
         boolean armed = relayPrefs.getBoolean("armed", false);
-        relayStatus.setText("Relay: " + (relay.isRunning() ? "CONNECTED" : "OFF") +
+        AstraAccessibilityService svc = AstraAccessibilityService.getInstance();
+        boolean running = svc != null && svc.isRelayRunning();
+        relayStatus.setText("Relay: " + (running ? "CONNECTED" : "OFF") +
                 "    ARM: " + (armed ? "ON" : "OFF"));
     }
 
