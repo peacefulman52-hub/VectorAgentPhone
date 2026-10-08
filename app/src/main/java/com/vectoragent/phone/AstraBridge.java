@@ -3,7 +3,6 @@ package com.vectoragent.phone;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 
 import org.json.JSONObject;
@@ -32,26 +31,46 @@ public final class AstraBridge {
         stopped = true;
         AstraAccessibilityService s = AstraAccessibilityService.getInstance();
         if (s != null) s.stopExecution();
-        AstraCommand cmd = new AstraCommand(AstraCommand.Action.STOP, "", "", false);
-        safeLog("STOP", cmd, "Выполнение остановлено.");
+        safeLog("STOP", new AstraCommand(AstraCommand.Action.STOP, "", "", false),
+                "Выполнение остановлено.");
     }
 
     public void resume() {
         stopped = false;
         AstraAccessibilityService s = AstraAccessibilityService.getInstance();
         if (s != null) s.resumeExecution();
-        safeLog("RESUME", new AstraCommand(AstraCommand.Action.STOP, "", "", false),
+        safeLog("RESUME", new AstraCommand(AstraCommand.Action.RESUME, "", "", false),
                 "Выполнение возобновлено.");
+    }
+
+    public void endTask() {
+        AstraAccessibilityService s = AstraAccessibilityService.getInstance();
+        if (s != null) s.endTask();
+        safeLog("END_TASK", new AstraCommand(AstraCommand.Action.END_TASK, "", "", false),
+                "Задача завершена.");
     }
 
     public String execute(AstraCommand command) {
         if (command == null) return "Команда отсутствует.";
 
         try {
-            if (command.action != AstraCommand.Action.STOP && command.action != AstraCommand.Action.RESUME && isStopped()) {
+            boolean controlCommand =
+                    command.action == AstraCommand.Action.STOP ||
+                    command.action == AstraCommand.Action.RESUME ||
+                    command.action == AstraCommand.Action.END_TASK;
+
+            if (!controlCommand && isStopped()) {
                 String r = "STOP активирован.";
                 safeLog("BLOCKED", command, r);
                 return r;
+            }
+
+            AstraAccessibilityService s = AstraAccessibilityService.getInstance();
+            if (!command.taskId.isEmpty() && s != null &&
+                    command.action != AstraCommand.Action.STOP &&
+                    command.action != AstraCommand.Action.RESUME &&
+                    command.action != AstraCommand.Action.END_TASK) {
+                s.prepareTask(command.taskId, command.clickLimit);
             }
 
             String result;
@@ -66,7 +85,6 @@ public final class AstraBridge {
                     result = requireService(command, false);
                     break;
                 case READ_SCREEN:
-                    AstraAccessibilityService s = AstraAccessibilityService.getInstance();
                     result = s == null ? "Accessibility Service не подключён." : s.readScreen();
                     break;
                 case STOP:
@@ -76,6 +94,10 @@ public final class AstraBridge {
                 case RESUME:
                     resume();
                     result = "Выполнение возобновлено.";
+                    break;
+                case END_TASK:
+                    endTask();
+                    result = "Задача завершена.";
                     break;
                 default:
                     stop();
@@ -95,7 +117,14 @@ public final class AstraBridge {
     private String requireService(AstraCommand command, boolean click) {
         AstraAccessibilityService s = AstraAccessibilityService.getInstance();
         if (s == null) return "Accessibility Service не подключён.";
-        return click ? s.click(command.target) : s.type(command.target, command.value);
+
+        if (click) {
+            if (!command.taskId.isEmpty()) {
+                return s.clickForTask(command.target, command.taskId, command.clickLimit);
+            }
+            return s.click(command.target);
+        }
+        return s.type(command.target, command.value);
     }
 
     private String openUrl(String url) {
@@ -107,17 +136,13 @@ public final class AstraBridge {
 
         Uri uri = Uri.parse(u);
 
-        // Do not gate execution on resolveActivity(): Android package-visibility
-        // rules can make it return null even when a browser is actually able to
-        // handle ACTION_VIEW. Try launching directly and use the thrown exception
-        // as the real availability check.
         try {
             Intent chrome = new Intent(Intent.ACTION_VIEW, uri);
             chrome.setPackage("com.android.chrome");
             startActivity(chrome);
             return "Chrome открыт: " + u;
         } catch (Throwable ignored) {
-            // Fall back to the system browser below.
+            // Fall back to the system browser.
         }
 
         try {
