@@ -2,6 +2,8 @@ name: Build APK
 on:
   push:
     branches: [ main, vector-lab-2.0, research-engine-3.1, astra-bridge-3.2, hotfix-astra-open-url-crash-3.2.1, astra-link-3.3.0 ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 permissions:
   contents: write
