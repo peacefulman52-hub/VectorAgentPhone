@@ -2,18 +2,18 @@ package com.vectoragent.phone;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 public class AstraAccessibilityService extends AccessibilityService {
     private static volatile AstraAccessibilityService instance;
     private volatile boolean stopped;
+    private volatile AccessibilityNodeInfo lastExternalRoot;
+    private volatile String lastExternalPackage = "";
 
     public static AstraAccessibilityService getInstance() { return instance; }
     public boolean isStopped() { return stopped; }
@@ -34,13 +34,33 @@ public class AstraAccessibilityService extends AccessibilityService {
     }
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) { }
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+        CharSequence pkg = event.getPackageName();
+        String packageName = pkg == null ? "" : pkg.toString();
+        // Keep the most recently active non-Astra window. This lets READ_SCREEN
+        // inspect Chrome (or another app) even after the user returns to Astra.
+        if (!packageName.isEmpty() && !packageName.equals(getPackageName()) &&
+                (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                 event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(root);
+                AccessibilityNodeInfo old = lastExternalRoot;
+                lastExternalRoot = copy;
+                lastExternalPackage = packageName;
+                if (old != null) old.recycle();
+            }
+        }
+    }
 
-    @Override
-    public void onInterrupt() { stopped = true; }
+    @Override public void onInterrupt() { stopped = true; }
 
     @Override
     public void onDestroy() {
+        AccessibilityNodeInfo old = lastExternalRoot;
+        lastExternalRoot = null;
+        if (old != null) old.recycle();
         if (instance == this) instance = null;
         super.onDestroy();
     }
@@ -49,12 +69,15 @@ public class AstraAccessibilityService extends AccessibilityService {
     public void resumeExecution() { stopped = false; }
 
     public String readScreen() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo root = lastExternalRoot;
+        if (root == null) root = getRootInActiveWindow();
         if (root == null) return "Экран недоступен.";
         StringBuilder out = new StringBuilder();
         appendNode(root, out, 0);
         String s = out.toString().trim();
-        return s.isEmpty() ? "На активном экране нет доступного текста." : s;
+        if (s.isEmpty()) return "На последнем экране нет доступного текста.";
+        return "Последнее окно: " + (lastExternalPackage.isEmpty() ? "неизвестно" : lastExternalPackage) +
+                "\n" + s;
     }
 
     private void appendNode(AccessibilityNodeInfo node, StringBuilder out, int depth) {
@@ -72,17 +95,13 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     public String click(String target) {
         if (stopped) return "STOP активирован.";
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo root = lastExternalRoot;
+        if (root == null) root = getRootInActiveWindow();
         AccessibilityNodeInfo node = find(root, target);
         if (node == null) return "Элемент не найден: " + target;
-        // Some accessibility nodes expose ACTION_CLICK without advertising
-        // isClickable(), so try the action itself first.
         if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             return "CLICK выполнен: " + target;
         }
-
-        // If the matched text belongs to a child label/icon, walk up the
-        // hierarchy and try clickable/action-capable parents.
         AccessibilityNodeInfo parent = node.getParent();
         int depth = 0;
         while (parent != null && depth++ < 8) {
@@ -91,13 +110,13 @@ public class AstraAccessibilityService extends AccessibilityService {
             }
             parent = parent.getParent();
         }
-
         return "Элемент найден, но ACTION_CLICK недоступен: " + target;
     }
 
     public String type(String target, String text) {
         if (stopped) return "STOP активирован.";
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo root = lastExternalRoot;
+        if (root == null) root = getRootInActiveWindow();
         AccessibilityNodeInfo node = find(root, target);
         if (node == null) return "Поле не найдено: " + target;
         if (!node.isEditable()) {
