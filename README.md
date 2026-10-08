@@ -55,3 +55,8 @@ Controlled Android execution layer: AccessibilityService, explicit OPEN_URL/CLIC
 
 
 CI trigger for Astra Bridge 3.3.3.
+
+
+## Astra Bridge 3.5.0
+
+Stable Chrome overlay, task-scoped click guard, and relay polling owned by AccessibilityService so the bridge survives leaving Astra Activity.
