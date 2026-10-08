@@ -5,9 +5,9 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.view.Gravity;
-import android.view.inputmethod.InputMethodManager;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -20,7 +20,6 @@ import java.util.List;
 final class AstraOverlayController {
     private final AstraAccessibilityService service;
     private final WindowManager wm;
-    private final int density;
 
     private FrameLayout root;
     private LinearLayout bar;
@@ -31,7 +30,6 @@ final class AstraOverlayController {
     AstraOverlayController(AstraAccessibilityService service) {
         this.service = service;
         this.wm = (WindowManager) service.getSystemService(Context.WINDOW_SERVICE);
-        this.density = (int) (service.getResources().getDisplayMetrics().density + 0.5f);
         buildBar();
     }
 
@@ -72,25 +70,27 @@ final class AstraOverlayController {
         Button click = button("CLICK");
         Button stop = button("STOP");
         Button resume = button("RESUME");
-        Button limit = button("N=10");
-        info = label("0/10", 11);
+        Button limit = button("N");
+        info = label("READY", 11);
         info.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
 
         bar.addView(read, new LinearLayout.LayoutParams(0, dp(42), 1));
         bar.addView(click, new LinearLayout.LayoutParams(0, dp(42), 1));
         bar.addView(stop, new LinearLayout.LayoutParams(0, dp(42), 1));
         bar.addView(resume, new LinearLayout.LayoutParams(0, dp(42), 1));
-        bar.addView(limit, new LinearLayout.LayoutParams(0, dp(42), 0.8f));
-        bar.addView(info, new LinearLayout.LayoutParams(dp(58), dp(42)));
+        bar.addView(limit, new LinearLayout.LayoutParams(0, dp(42), 0.55f));
+        bar.addView(info, new LinearLayout.LayoutParams(dp(92), dp(42)));
 
         root.addView(bar, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT));
 
         read.setOnClickListener(v -> {
             String s = service.readScreen();
             showResult("READ:\n" + compact(s, 900));
         });
 
+        // Manual diagnostic click: one explicit click and never part of a task budget.
         click.setOnClickListener(v -> showClickChooser());
 
         stop.setOnClickListener(v -> {
@@ -107,6 +107,7 @@ final class AstraOverlayController {
     }
 
     private void showResult(String text) {
+        if (info == null) return;
         info.setText(text.replace("\n", " | ").trim());
         info.postDelayed(this::update, 4500);
     }
@@ -119,6 +120,7 @@ final class AstraOverlayController {
 
     private void showClickChooser() {
         panelMode = true;
+        root.setVisibility(View.VISIBLE);
         removeCurrent();
 
         LinearLayout panel = new LinearLayout(service);
@@ -160,12 +162,14 @@ final class AstraOverlayController {
         panel.addView(back);
 
         root.addView(panel, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT));
         setWindowFocusable(false);
     }
 
     private void showLimitPanel() {
         panelMode = true;
+        root.setVisibility(View.VISIBLE);
         removeCurrent();
 
         LinearLayout panel = new LinearLayout(service);
@@ -173,7 +177,8 @@ final class AstraOverlayController {
         panel.setPadding(dp(12), dp(10), dp(12), dp(10));
         panel.setBackgroundColor(Color.argb(250, 25, 25, 30));
 
-        panel.addView(label("Пауза после скольких кликов?", 15));
+        panel.addView(label("Лимит кликов для следующей задачи", 15));
+        panel.addView(label("Ручные диагностические CLICK и READ лимит не расходуют.", 12));
 
         EditText input = new EditText(service);
         input.setSingleLine(true);
@@ -208,7 +213,8 @@ final class AstraOverlayController {
         });
 
         root.addView(panel, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT));
         setWindowFocusable(true);
         input.requestFocus();
         input.postDelayed(() -> {
@@ -219,6 +225,7 @@ final class AstraOverlayController {
 
     void showContinuePrompt(int count, int checkpoint) {
         panelMode = true;
+        root.setVisibility(View.VISIBLE);
         removeCurrent();
 
         LinearLayout panel = new LinearLayout(service);
@@ -247,48 +254,64 @@ final class AstraOverlayController {
         });
 
         root.addView(panel, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT));
         setWindowFocusable(false);
     }
 
     void show() {
-        if (attached || wm == null) {
-            update();
-            return;
-        }
+        if (wm == null) return;
 
-        WindowManager.LayoutParams p = params();
-        try {
-            wm.addView(root, p);
-            attached = true;
-        } catch (Throwable ignored) {
-            attached = false;
+        root.setVisibility(View.VISIBLE);
+
+        if (!attached) {
+            WindowManager.LayoutParams p = params();
+            try {
+                wm.addView(root, p);
+                attached = true;
+            } catch (Throwable ignored) {
+                attached = false;
+            }
         }
         update();
     }
 
     void hide() {
-        if (root != null) {
-            panelMode = false;
-            root.removeAllViews();
-            if (bar != null) root.addView(bar, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        if (root == null) return;
+
+        // Do not detach/re-attach the WindowManager overlay on every accessibility
+        // event. Keeping the same window attached removes the Chrome/Vector flicker.
+        panelMode = false;
+        removeCurrent();
+        if (bar != null) {
+            root.addView(bar, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT));
         }
-        if (!attached || wm == null) return;
-        try { wm.removeView(root); } catch (Throwable ignored) {}
-        attached = false;
+        root.setVisibility(View.GONE);
     }
 
     void destroy() {
-        hide();
+        if (!attached || wm == null || root == null) return;
+        try { wm.removeView(root); } catch (Throwable ignored) {}
+        attached = false;
     }
 
     void update() {
         if (info == null) return;
         int n = service.getClickCheckpoint();
-        if (service.isStopped()) info.setText("STOP");
-        else if (service.isClickPaused()) info.setText(service.getClickCount() + "/" + n + " • PAUSE");
-        else info.setText(service.getClickCount() + "/" + n);
+        String task = service.getActiveTaskId();
+
+        if (service.isStopped()) {
+            info.setText("STOP");
+        } else if (service.isTaskPaused()) {
+            info.setText((task.isEmpty() ? "" : "TASK ") +
+                    service.getClickCount() + "/" + n + " • PAUSE");
+        } else if (!task.isEmpty()) {
+            info.setText("TASK " + service.getClickCount() + "/" + n);
+        } else {
+            info.setText("READY");
+        }
     }
 
     private void removeCurrent() {
@@ -300,15 +323,19 @@ final class AstraOverlayController {
         panelMode = false;
         removeCurrent();
         root.addView(bar, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT));
         setWindowFocusable(false);
+        root.setVisibility(View.VISIBLE);
         update();
     }
 
     private void hideKeyboard(View v) {
         try {
             InputMethodManager imm = (InputMethodManager) service.getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null && v != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            if (imm != null && v != null) {
+                imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            }
         } catch (Throwable ignored) {}
     }
 
