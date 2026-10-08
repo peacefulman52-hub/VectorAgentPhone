@@ -53,6 +53,7 @@ public class AstraActivity extends Activity {
         root.addView(tv("Безопасный исполнительный слой телефона. Команды проходят через явный EXECUTE; действия пишутся в журнал.", 13));
 
         status = tv("", 15); root.addView(status);
+        result = tv("Результат появится здесь.", 13); root.addView(result);
         LinearLayout setup = new LinearLayout(this);
         Button enable = btn("⚙ Включить Accessibility");
         Button refresh = btn("↻ Обновить");
