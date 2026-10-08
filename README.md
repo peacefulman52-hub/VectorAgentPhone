@@ -52,3 +52,6 @@ Vector Lab 2.0 CI trigger.
 Controlled Android execution layer: AccessibilityService, explicit OPEN_URL/CLICK/TYPE/READ_SCREEN commands, audit log, STOP/RESUME. Commands are executed only from the Astra Bridge UI in this prototype.
 
 ## CI trigger 3.3.1
+
+
+CI trigger for Astra Bridge 3.3.3.
