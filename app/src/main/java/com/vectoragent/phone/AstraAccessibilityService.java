@@ -273,9 +273,7 @@ public class AstraAccessibilityService extends AccessibilityService {
                 .append(s);
 
         if (!targets.isEmpty()) {
-            result.append("
-
-Доступные CLICK-цели:");
+            result.append("\n\nДоступные CLICK-цели:");
             for (ClickTarget t : targets) {
                 result.append("
 • ").append(t.label).append("  [").append(t.target).append("]");
