@@ -168,9 +168,28 @@ public class AstraActivity extends Activity {
             refreshRelayStatus();
         });
 
-        root.addView(tv("Журнал действий", 18));
-        logView = tv("", 12); root.addView(logView);
-        Button clear = btn("Очистить журнал"); root.addView(clear);
+        LinearLayout journalHeader = new LinearLayout(this);
+        journalHeader.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView journalTitle = tv("Журнал действий", 18);
+        Button toggleLog = btn("▾ Показать");
+        journalHeader.addView(journalTitle, new LinearLayout.LayoutParams(0,-2,1));
+        journalHeader.addView(toggleLog);
+        root.addView(journalHeader);
+
+        logView = tv("", 12);
+        logView.setVisibility(android.view.View.GONE);
+        root.addView(logView);
+
+        Button clear = btn("Очистить журнал");
+        clear.setVisibility(android.view.View.GONE);
+        root.addView(clear);
+
+        toggleLog.setOnClickListener(v -> {
+            boolean show = logView.getVisibility() != android.view.View.VISIBLE;
+            logView.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
+            clear.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
+            toggleLog.setText(show ? "▴ Скрыть" : "▾ Показать");
+        });
         clear.setOnClickListener(v -> { bridge.clearLog(); refresh(); });
     }
 
