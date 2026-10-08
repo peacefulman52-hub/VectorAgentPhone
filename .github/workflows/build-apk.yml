@@ -1,7 +1,7 @@
 name: Build APK
 on:
   push:
-    branches: [ main, vector-lab-2.0, research-engine-3.1 ]
+    branches: [ main, vector-lab-2.0, research-engine-3.1, astra-bridge-3.2 ]
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,10 +22,10 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-3.1.0-apk
+          name: VectorAgentPhone-3.2.0-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.1.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.1.0" --notes "Research Lab 3.1: data-driven rule discovery, competing hypotheses, independent experiments, distinguishing experiment selection." || true
+          gh release create v3.2.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.2.0" --notes "Astra Bridge 3.2: explicit Android accessibility execution, safe command whitelist, action log, STOP/RESUME." || true
