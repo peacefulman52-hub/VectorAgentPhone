@@ -3,7 +3,7 @@ package com.vectoragent.phone;
 import org.json.JSONObject;
 
 public final class AstraCommand {
-    public enum Action { OPEN_URL, CLICK, TYPE, READ_SCREEN, STOP }
+    public enum Action { OPEN_URL, CLICK, TYPE, READ_SCREEN, STOP, RESUME }
 
     public final Action action;
     public final String target;
@@ -29,7 +29,7 @@ public final class AstraCommand {
     }
 
     public static AstraCommand fromJson(JSONObject o) {
-        Action action = Action.valueOf(o.optString("action", "READ_SCREEN"));
+        Action action = Action.valueOf(o.optString("action", "READ_SCREEN").toUpperCase());
         return new AstraCommand(action, o.optString("target", ""), o.optString("value", ""),
                 o.optBoolean("requires_confirmation", true));
     }

@@ -48,7 +48,7 @@ public final class AstraBridge {
         if (command == null) return "Команда отсутствует.";
 
         try {
-            if (command.action != AstraCommand.Action.STOP && isStopped()) {
+            if (command.action != AstraCommand.Action.STOP && command.action != AstraCommand.Action.RESUME && isStopped()) {
                 String r = "STOP активирован.";
                 safeLog("BLOCKED", command, r);
                 return r;
@@ -70,6 +70,13 @@ public final class AstraBridge {
                     result = s == null ? "Accessibility Service не подключён." : s.readScreen();
                     break;
                 case STOP:
+                    stop();
+                    result = "STOP активирован.";
+                    break;
+                case RESUME:
+                    resume();
+                    result = "Выполнение возобновлено.";
+                    break;
                 default:
                     stop();
                     result = "STOP активирован.";

@@ -50,7 +50,7 @@ public class AstraActivity extends Activity {
 
     void build() {
         root.addView(tv("🛰 ASTRA BRIDGE 0.2", 26));
-        root.addView(tv("Безопасный исполнительный слой телефона. Команды проходят через явный EXECUTE; действия пишутся в журнал.", 13));
+        root.addView(tv("Безопасный исполнительный слой телефона. В Chrome Astra оставляет плавающие кнопки CLICK / STOP / READ под рукой.", 13));
 
         status = tv("", 15); root.addView(status);
         result = tv("Результат появится здесь.", 13); root.addView(result);
@@ -209,8 +209,7 @@ public class AstraActivity extends Activity {
         try {
             String service = bridge.isServiceConnected() ? "CONNECTED" : "OFF";
             String mode = bridge.isStopped() ? "STOPPED" : "READY";
-            status.setText("Service: " + service + "    Mode: " + mode + "\n" +
-                    "Логов: " + bridge.logSize());
+            status.setText("Service: " + service + "    Mode: " + mode);
 
             List<String> rows = bridge.recentLog(12);
             StringBuilder s = new StringBuilder();
