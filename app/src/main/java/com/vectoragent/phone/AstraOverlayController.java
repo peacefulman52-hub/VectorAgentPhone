@@ -5,7 +5,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.view.Gravity;
-import android.view.InputMethodManager;
+import android.view.inputmethod.InputMethodManager;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -268,6 +268,12 @@ final class AstraOverlayController {
     }
 
     void hide() {
+        if (root != null) {
+            panelMode = false;
+            root.removeAllViews();
+            if (bar != null) root.addView(bar, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        }
         if (!attached || wm == null) return;
         try { wm.removeView(root); } catch (Throwable ignored) {}
         attached = false;
