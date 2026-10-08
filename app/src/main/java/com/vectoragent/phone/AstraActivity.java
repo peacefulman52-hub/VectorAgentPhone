@@ -14,7 +14,10 @@ public class AstraActivity extends Activity {
     private AstraBridge bridge;
     private LinearLayout root;
     private TextView status, result, logView;
-    private EditText target, value;
+    private EditText target, value, relayUrl, relayDevice, relayToken;
+    private TextView relayStatus, pending;
+    private AstraRelayClient relay;
+    private android.content.SharedPreferences relayPrefs;
 
     int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
     TextView tv(String s, float z) {
@@ -27,6 +30,12 @@ public class AstraActivity extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         bridge = new AstraBridge(this);
+        relayPrefs = getSharedPreferences("astra_link", MODE_PRIVATE);
+        relay = new AstraRelayClient(new AstraRelayClient.Listener() {
+            @Override public void onStatus(String s) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay: " + s); }); }
+            @Override public void onCommand(JSONObject command) { runOnUiThread(() -> handleRemoteCommand(command)); }
+            @Override public void onError(String error) { runOnUiThread(() -> { if (relayStatus != null) relayStatus.setText("Relay ERROR: " + error); }); }
+        });
         ScrollView scroll = new ScrollView(this);
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(10),dp(12),dp(18)); scroll.addView(root);
@@ -128,6 +137,36 @@ public class AstraActivity extends Activity {
             refresh();
         });
 
+        root.addView(tv("Astra Link — управление через relay", 18));
+        root.addView(tv("Первый этап работает пока открыт Astra. Команды из relay исполняются автоматически только после включения ARM. Для опасных действий оставляем requires_confirmation.", 12));
+
+        relayUrl = new EditText(this); relayUrl.setHint("Relay URL, например https://astra-link.example.workers.dev");
+        relayDevice = new EditText(this); relayDevice.setHint("Device ID");
+        relayToken = new EditText(this); relayToken.setHint("Token");
+        relayToken.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        root.addView(relayUrl); root.addView(relayDevice); root.addView(relayToken);
+
+        LinearLayout relayButtons = new LinearLayout(this);
+        Button connect = btn("🔗 CONNECT");
+        Button disconnect = btn("⛔ DISCONNECT");
+        Button arm = btn("🔐 ARM");
+        relayButtons.addView(connect, new LinearLayout.LayoutParams(0,-2,1));
+        relayButtons.addView(disconnect, new LinearLayout.LayoutParams(0,-2,1));
+        relayButtons.addView(arm, new LinearLayout.LayoutParams(0,-2,1));
+        root.addView(relayButtons);
+        relayStatus = tv("Relay: OFF", 13); root.addView(relayStatus);
+        pending = tv("Нет удалённых команд.", 13); root.addView(pending);
+
+        loadRelaySettings();
+        connect.setOnClickListener(v -> connectRelay());
+        disconnect.setOnClickListener(v -> { relay.stop(); refreshRelayStatus(); });
+        arm.setOnClickListener(v -> {
+            boolean armed = relayPrefs.getBoolean("armed", false);
+            relayPrefs.edit().putBoolean("armed", !armed).apply();
+            arm.setText(!armed ? "🔓 DISARM" : "🔐 ARM");
+            refreshRelayStatus();
+        });
+
         root.addView(tv("Журнал действий", 18));
         logView = tv("", 12); root.addView(logView);
         Button clear = btn("Очистить журнал"); root.addView(clear);
@@ -161,4 +200,67 @@ public class AstraActivity extends Activity {
             status.setText("ASTRA UI ERROR: " + e.getClass().getSimpleName());
         }
     }
+    private void loadRelaySettings() {
+        relayUrl.setText(relayPrefs.getString("url", ""));
+        relayDevice.setText(relayPrefs.getString("device", ""));
+        relayToken.setText(relayPrefs.getString("token", ""));
+        boolean armed = relayPrefs.getBoolean("armed", false);
+        // Button label is set when the UI is built.
+    }
+
+    private void connectRelay() {
+        String url = relayUrl.getText().toString().trim();
+        String device = relayDevice.getText().toString().trim();
+        String token = relayToken.getText().toString().trim();
+        relayPrefs.edit().putString("url", url).putString("device", device).putString("token", token).apply();
+        relay.configure(url, device, token);
+        relay.start();
+        refreshRelayStatus();
+    }
+
+    private void refreshRelayStatus() {
+        if (relayStatus == null) return;
+        boolean armed = relayPrefs.getBoolean("armed", false);
+        relayStatus.setText("Relay: " + (relay.isRunning() ? "CONNECTED" : "OFF") +
+                "    ARM: " + (armed ? "ON" : "OFF"));
+    }
+
+    private void handleRemoteCommand(JSONObject json) {
+        try {
+            String commandId = json.optString("command_id", "");
+            String action = json.optString("action", "READ_SCREEN").toUpperCase();
+            String targetText = json.optString("target", "");
+            String valueText = json.optString("value", "");
+            boolean confirmation = json.optBoolean("requires_confirmation", true);
+
+            pending.setText("Удалённая команда: " + action + "  " + targetText +
+                    (confirmation ? "  [CONFIRM]" : "  [AUTO]"));
+
+            boolean armed = relayPrefs.getBoolean("armed", false);
+            if (!armed || confirmation) {
+                result.setText("Ожидает ARM/подтверждения:\n" + json.toString(2));
+                return;
+            }
+
+            AstraCommand.Action act = AstraCommand.Action.valueOf(action);
+            String out = bridge.execute(new AstraCommand(act, targetText, valueText, false));
+            boolean ok = !out.startsWith("ASTRA ERROR") && !out.contains("не подключён");
+            relay.sendResult(commandId, ok, out);
+            result.setText("Relay EXECUTE:\n" + out);
+            pending.setText("Удалённая команда выполнена: " + commandId);
+            refresh();
+        } catch (Throwable e) {
+            String err = "Remote command error: " + e.getClass().getSimpleName() +
+                    " — " + String.valueOf(e.getMessage());
+            result.setText(err);
+            try { relay.sendResult(json == null ? "" : json.optString("command_id",""), false, err); }
+            catch (Throwable ignored) {}
+        }
+    }
+
+    @Override protected void onDestroy() {
+        if (relay != null) relay.stop();
+        super.onDestroy();
+    }
+
 }
