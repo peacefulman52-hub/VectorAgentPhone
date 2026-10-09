@@ -99,6 +99,10 @@ public class AstraAccessibilityService extends AccessibilityService {
         }
     }
 
+    private boolean isChromePackage(String packageName) {
+        return "com.android.chrome".equals(packageName);
+    }
+
     @Override
     public void onInterrupt() {
         stopped = true;
