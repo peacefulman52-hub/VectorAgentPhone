@@ -40,7 +40,10 @@ public class AstraActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (bridge != null) refresh();
+        if (bridge != null) {
+            refresh();
+            refreshRelayStatus();
+        }
     }
 
     void build() {
@@ -134,7 +137,7 @@ public class AstraActivity extends Activity {
         });
 
         root.addView(tv("Astra Link — управление через relay", 18));
-        root.addView(tv("Первый этап работает пока открыт Astra. Команды из relay исполняются автоматически только после включения ARM. Для опасных действий оставляем requires_confirmation.", 12));
+        root.addView(tv("Relay работает внутри AccessibilityService и сохраняет соединение при переходе в Chrome. ARM включает удалённое выполнение; команды с requires_confirmation=true блокируются до отдельного подтверждения.", 12));
 
         relayUrl = new EditText(this); relayUrl.setHint("Relay URL, например https://astra-link.example.workers.dev");
         relayDevice = new EditText(this); relayDevice.setHint("Device ID");
@@ -145,7 +148,7 @@ public class AstraActivity extends Activity {
         LinearLayout relayButtons = new LinearLayout(this);
         Button connect = btn("🔗 CONNECT");
         Button disconnect = btn("⛔ DISCONNECT");
-        Button arm = btn("🔐 ARM");
+        Button arm = btn(relayPrefs.getBoolean("armed", false) ? "🔓 DISARM" : "🔐 ARM");
         relayButtons.addView(connect, new LinearLayout.LayoutParams(0,-2,1));
         relayButtons.addView(disconnect, new LinearLayout.LayoutParams(0,-2,1));
         relayButtons.addView(arm, new LinearLayout.LayoutParams(0,-2,1));
@@ -253,8 +256,10 @@ public class AstraActivity extends Activity {
         boolean armed = relayPrefs.getBoolean("armed", false);
         AstraAccessibilityService svc = AstraAccessibilityService.getInstance();
         boolean running = svc != null && svc.isRelayRunning();
-        relayStatus.setText("Relay: " + (running ? "CONNECTED" : "OFF") +
-                "    ARM: " + (armed ? "ON" : "OFF"));
+        String detail = relayPrefs.getString("relay_status", "");
+        if (detail.isEmpty()) detail = running ? "CONNECTING" : "OFF";
+        if (!running && !detail.startsWith("ERROR:") && !armed) detail = "OFF";
+        relayStatus.setText("Relay: " + detail + "    ARM: " + (armed ? "ON" : "OFF"));
     }
 
 
