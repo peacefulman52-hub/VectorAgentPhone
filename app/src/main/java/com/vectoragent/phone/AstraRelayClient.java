@@ -64,6 +64,7 @@ public final class AstraRelayClient {
         while (running) {
             try {
                 JSONObject command = next();
+                listener.onStatus("CONNECTED");
                 if (command != null) {
                     listener.onCommand(command);
                 }
