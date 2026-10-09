@@ -129,6 +129,7 @@ public class AstraAccessibilityService extends AccessibilityService {
     public void resumeExecution() {
         stopped = false;
         taskPaused = false;
+        if (!activeTaskId.isEmpty()) taskClickCount = 0;
         if (overlay != null) {
             overlay.show();
             overlay.update();
@@ -177,6 +178,15 @@ public class AstraAccessibilityService extends AccessibilityService {
         }
     }
 
+    private void saveRelayStatus(String status) {
+        try {
+            getSharedPreferences("astra_link", MODE_PRIVATE).edit()
+                    .putString("relay_status", status == null ? "" : status)
+                    .apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
     public boolean isRelayRunning() {
         return relay != null && relay.isRunning();
     }
@@ -204,8 +214,12 @@ public class AstraAccessibilityService extends AccessibilityService {
             if (url.isEmpty() || device.isEmpty() || token.isEmpty()) return;
 
             AstraRelayClient r = new AstraRelayClient(new AstraRelayClient.Listener() {
-                @Override public void onStatus(String status) { }
-                @Override public void onError(String error) { }
+                @Override public void onStatus(String status) {
+                    saveRelayStatus(status);
+                }
+                @Override public void onError(String error) {
+                    saveRelayStatus("ERROR: " + error);
+                }
                 @Override public void onCommand(JSONObject command) {
                     handleRemoteCommand(command);
                 }
@@ -237,6 +251,12 @@ public class AstraAccessibilityService extends AccessibilityService {
             String taskId = json.optString("task_id", "");
             int clickLimit = Math.max(0, json.optInt("click_limit", 0));
             boolean confirmation = json.optBoolean("requires_confirmation", true);
+            if (confirmation) {
+                r.sendResult(commandId, false,
+                        "Команда не выполнена: требуется явное подтверждение. " +
+                        "Повтори её с requires_confirmation=false только после подтверждения действия.");
+                return;
+            }
 
             AstraCommand.Action act = AstraCommand.Action.valueOf(action);
             AstraCommand command = new AstraCommand(
