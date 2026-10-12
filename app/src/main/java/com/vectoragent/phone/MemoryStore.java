@@ -16,13 +16,14 @@ import javax.crypto.spec.GCMParameterSpec;
 
 public class MemoryStore {
     public static class Item {
-        public String id,text,status,source,relation,provenance,version; public double confidence; public int support; public long created,updated;
-        Item(String id,String text,String status,String source,String relation,String provenance,String version,double confidence,int support,long created,long updated){this.id=id;this.text=text;this.status=status;this.source=source;this.relation=relation;this.provenance=provenance;this.version=version;this.confidence=confidence;this.support=support;this.created=created;this.updated=updated;}
+        public String id,text,status,source,relation,provenance,version,clusterId; public double confidence; public int support; public long created,updated;
+        Item(String id,String text,String status,String source,String relation,String provenance,String version,String clusterId,double confidence,int support,long created,long updated){this.id=id;this.text=text;this.status=status;this.source=source;this.relation=relation;this.provenance=provenance;this.version=version;this.clusterId=clusterId;this.confidence=confidence;this.support=support;this.created=created;this.updated=updated;}
     }
     public static class Hypothesis {
         public String id,rule,evidence,status,version; public int support;
         Hypothesis(String id,String rule,String evidence,String status,String version,int support){this.id=id;this.rule=rule;this.evidence=evidence;this.status=status;this.version=version;this.support=support;}
     }
+    public static class ConclusionCluster { public String id,label; public final List<Item> members=new ArrayList<>(); public int active,candidate,conflict,rejected; }
     public static class IngestResult { public int added=0,conflicts=0,ignored=0,similar=0; public final List<String> messages=new ArrayList<>(); public final List<String> learning=new ArrayList<>(); }
     private static final String PREF="vector_memory",KEY="items",HKEY="hypotheses",LKEY="learning_log"; private final SharedPreferences p; private final LearningEngine learner; private final ExplorationEngine exploration;
     public MemoryStore(Context c){p=c.getSharedPreferences(PREF,Context.MODE_PRIVATE);learner=new LearningEngine(c);exploration=new ExplorationEngine(c);ensureKey();ensureSeedData();}
@@ -123,7 +124,7 @@ public class MemoryStore {
     }
 
     public List<Item> all(){List<Item> r=new ArrayList<>();JSONArray a=read();for(int i=0;i<a.length();i++)try{r.add(item(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
-    private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optDouble("confidence"),o.optInt("support",1),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
+    private Item item(JSONObject o){return new Item(o.optString("id"),o.optString("text"),o.optString("status"),o.optString("source"),o.optString("relation"),o.optString("provenance"),o.optString("version","1"),o.optString("clusterId",""),o.optDouble("confidence"),o.optInt("support",1),o.optLong("created"),o.optLong("updated",o.optLong("created")));}
     private String norm(String s){return s.toLowerCase().replaceAll("\\s+"," ").trim();}
     private boolean has(String s,String... xs){for(String x:xs)if(s.contains(x))return true;return false;}
     private boolean contradicts(String a,String b){
@@ -157,6 +158,146 @@ public class MemoryStore {
     }
 
     private double similarity(String a,String b){String[] x=norm(a).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");String[] y=norm(b).replaceAll("[^a-zA-Zа-яА-ЯёЁ0-9 ]"," ").split(" +");int common=0;for(String w:x){if(w.length()<3)continue;for(String z:y)if(w.equals(z)){common++;break;}}return (double)common/Math.max(1,Math.max(x.length,y.length));}
+
+    private static final java.util.Set<String> CLUSTER_STOP_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "это","как","что","при","для","или","и","а","но","из","по","в","во","к","с","со","от","до","не","без","над","под","у","же","ли","бы","об","о","за","на","the","and","are","is","of","to","in","on","for","with","as","by","from",
+        "предварительный","вывод","заключение","гипотеза","гипотезы","повторяющееся","противопоставление","шаблоне","шаблон","правило","система","данные","наблюдение","наблюдения"
+    ));
+
+    private java.util.Set<String> clusterTokens(String text){
+        java.util.HashSet<String> out=new java.util.HashSet<>();
+        String clean=norm(text).replaceAll("[^\\p{L}\\p{Nd} ]"," ");
+        for(String token:clean.split("\\s+")){
+            if(token.length()<3 || CLUSTER_STOP_WORDS.contains(token)) continue;
+            String stem=token;
+            String[] suffixes={"иями","ями","ами","ого","ему","ыми","ими","иях","ая","яя","ое","ее","ые","ие","ий","ый","ой","ую","юю","ых","их","ам","ям","ом","ем","ах","ях","ов","ев","ей","а","я","ы","и","у","ю","е","о"};
+            for(String suffix:suffixes){
+                if(stem.length()>suffix.length()+2 && stem.endsWith(suffix)){stem=stem.substring(0,stem.length()-suffix.length());break;}
+            }
+            if(stem.length()>=3 && !CLUSTER_STOP_WORDS.contains(stem)) out.add(stem);
+        }
+        return out;
+    }
+
+    // Overlap of meaningful terms, not exact equality: similar conclusions stay separate
+    // records but can share a persistent cluster. At least two informative terms must match.
+    private double clusterSimilarity(String a,String b){
+        java.util.Set<String> x=clusterTokens(a), y=clusterTokens(b);
+        if(x.isEmpty()||y.isEmpty()) return 0.0;
+        int common=0; for(String w:x) if(y.contains(w)) common++;
+        if(common<2) return 0.0;
+        return (double)common/Math.max(1,Math.min(x.size(),y.size()));
+    }
+
+    private String freshClusterId(JSONArray items){
+        String id;
+        do { id="cl-"+System.currentTimeMillis()+"-"+items.length()+"-"+(int)(Math.random()*100000); }
+        while(containsClusterId(items,id));
+        return id;
+    }
+    private boolean containsClusterId(JSONArray items,String id){
+        for(int i=0;i<items.length();i++){JSONObject o=items.optJSONObject(i);if(o!=null&&id.equals(o.optString("clusterId")))return true;}
+        return false;
+    }
+    private String assignCluster(JSONArray items,JSONObject incoming)throws Exception{
+        if(!incoming.optString("clusterId","").isEmpty()) return incoming.optString("clusterId");
+        JSONObject best=null; double bestScore=0.0;
+        String text=incoming.optString("text","");
+        for(int i=0;i<items.length();i++){
+            JSONObject old=items.optJSONObject(i); if(old==null) continue;
+            double score=clusterSimilarity(text,old.optString("text",""));
+            if(score>bestScore){bestScore=score;best=old;}
+        }
+        String clusterId;
+        if(best!=null && bestScore>=0.50){
+            clusterId=best.optString("clusterId","");
+            if(clusterId.isEmpty()){clusterId=freshClusterId(items);best.put("clusterId",clusterId);}
+            // Migrate unclustered legacy records that are similarly related to this conclusion.
+            for(int i=0;i<items.length();i++){
+                JSONObject old=items.optJSONObject(i); if(old==null || !old.optString("clusterId","").isEmpty()) continue;
+                if(clusterSimilarity(text,old.optString("text",""))>=0.50) old.put("clusterId",clusterId);
+            }
+        } else clusterId=freshClusterId(items);
+        incoming.put("clusterId",clusterId);
+        return clusterId;
+    }
+
+    public List<ConclusionCluster> clusters(){
+        java.util.LinkedHashMap<String,ConclusionCluster> grouped=new java.util.LinkedHashMap<>();
+        for(Item x:all()){
+            if(x.clusterId==null||x.clusterId.isEmpty()) continue;
+            ConclusionCluster c=grouped.get(x.clusterId);
+            if(c==null){c=new ConclusionCluster();c.id=x.clusterId;c.label=x.text;grouped.put(c.id,c);}
+            c.members.add(x);
+            if("ACTIVE".equals(x.status))c.active++;else if("CANDIDATE".equals(x.status))c.candidate++;else if("CONFLICT".equals(x.status))c.conflict++;else if("REJECTED".equals(x.status))c.rejected++;
+        }
+        return new ArrayList<>(grouped.values());
+    }
+
+    // Store tentative conclusions as candidates, never as automatically verified facts.
+    // Similar-but-different conclusions receive distinct records and join a shared cluster.
+    public boolean recordConclusion(String text,String origin,String basis,double confidence){
+        String clean=text==null?"":text.trim();
+        if(clean.length()<8) return false;
+        String key="manual:"+Integer.toHexString(norm(clean).hashCode());
+        upsertPreliminaryConclusion(key,clean,origin,basis,confidence,1,"CANDIDATE");
+        appendLearningLog("PRELIMINARY_CONCLUSION: "+clean);
+        return true;
+    }
+
+    private void upsertPreliminaryConclusion(String key,String conclusion,String origin,String basis,double confidence,int support,String requestedStatus){
+        JSONArray a=read(); JSONObject found=null;
+        for(int i=0;i<a.length();i++){
+            JSONObject o=a.optJSONObject(i);
+            if(o!=null && "LOCAL_INFERENCE".equals(o.optString("source")) && key.equals(o.optString("conclusionKey"))){found=o;break;}
+        }
+        long now=System.currentTimeMillis();
+        try{
+            double modestConfidence=Math.max(0.15,Math.min(0.55,confidence));
+            if(found==null){
+                JSONObject o=new JSONObject();
+                o.put("id","conclusion-"+Integer.toHexString(key.hashCode())+"-"+now);
+                o.put("text","Предварительный вывод: "+conclusion);
+                o.put("status","REJECTED".equals(requestedStatus)?"REJECTED":"CANDIDATE");
+                o.put("source","LOCAL_INFERENCE");
+                o.put("conclusionOrigin",origin==null?"":origin);
+                o.put("relation","INFERRED_CONCLUSION");
+                o.put("provenance","PRELIMINARY_CONCLUSION; key="+key+"; basis="+(basis==null?"":basis));
+                o.put("conclusionKey",key);
+                o.put("confidence",modestConfidence);
+                o.put("support",Math.max(1,support));
+                o.put("version","1");
+                o.put("created",now);o.put("updated",now);
+                o.put("learningState","PRELIMINARY_NOT_VERIFIED");
+                o.put("history",new JSONArray());
+                assignCluster(a,o);a.put(o);
+            }else{
+                addHistory(found);
+                found.put("text","Предварительный вывод: "+conclusion);
+                found.put("conclusionOrigin",origin==null?"":origin);
+                found.put("provenance","PRELIMINARY_CONCLUSION; key="+key+"; basis="+(basis==null?"":basis));
+                found.put("confidence",Math.min(0.55,Math.max(found.optDouble("confidence",modestConfidence),modestConfidence)));
+                found.put("support",Math.max(found.optInt("support",1),Math.max(1,support)));
+                if("REJECTED".equals(requestedStatus)) found.put("status","REJECTED");
+                else if(!"ACTIVE".equals(found.optString("status")) && !"REJECTED".equals(found.optString("status"))) found.put("status","CANDIDATE");
+                found.put("learningState","PRELIMINARY_NOT_VERIFIED");
+                found.put("version",Integer.toString(found.optInt("version",1)+1));
+                found.put("updated",now);
+                if(found.optString("clusterId","").isEmpty()) assignCluster(a,found);
+            }
+            write(a);
+        }catch(Exception ignored){}
+    }
+
+    private void setConclusionStatus(String key,String status,String signal){
+        JSONArray a=read();boolean changed=false;
+        for(int i=0;i<a.length();i++){
+            JSONObject o=a.optJSONObject(i);
+            if(o==null||!"LOCAL_INFERENCE".equals(o.optString("source"))||!key.equals(o.optString("conclusionKey")))continue;
+            try{addHistory(o);o.put("status",status);o.put("learningSignal",signal);o.put("updated",System.currentTimeMillis());o.put("version",Integer.toString(o.optInt("version",1)+1));changed=true;}catch(Exception ignored){}
+        }
+        if(changed)write(a);
+    }
     private void addHistory(JSONObject o)throws Exception{JSONArray h=o.optJSONArray("history");if(h==null)h=new JSONArray();JSONObject v=new JSONObject();v.put("version",o.optString("version","1"));v.put("status",o.optString("status"));v.put("confidence",o.optDouble("confidence"));v.put("updated",o.optLong("updated",o.optLong("created")));h.put(v);o.put("history",h);}
     private String detectRelation(String a,String b){
         String x=norm(a), y=norm(b);
@@ -180,7 +321,7 @@ public class MemoryStore {
         JSONArray a=read();String id="m-"+System.currentTimeMillis()+"-"+a.length();long now=System.currentTimeMillis();String conflictWith="";int modelPairs=0;
         try{
             JSONObject o=new JSONObject();o.put("id",id);o.put("text",text);o.put("confidence",conf);o.put("created",now);o.put("updated",now);o.put("source",source);o.put("provenance",provenance);o.put("relation",relation);o.put("version","1");o.put("history",new JSONArray());o.put("learningState","UNTESTED");o.put("support",1);
-            for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null)continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
+            for(int i=0;i<a.length();i++){JSONObject old=a.optJSONObject(i);if(old==null || "LOCAL_INFERENCE".equals(old.optString("source")))continue;String oldText=old.optString("text");if(oldText.isEmpty())continue;
                 double pairSimilarity=similarity(text,oldText);
                 boolean directContradiction=contradicts(text,oldText);
                 LearningEngine.Prediction prediction=learner.predict(text,oldText);
@@ -193,7 +334,7 @@ public class MemoryStore {
                 }
                 String detected=detectRelation(text,oldText); if(directContradiction){conflictWith=old.optString("id");o.put("status","CONFLICT");o.put("relation",(relation.isEmpty()?"":relation+"; ")+"CONTRADICTS "+conflictWith);old.put("status","CONFLICT");String oldRel=old.optString("relation");old.put("relation",(oldRel.isEmpty()?"":oldRel+"; ")+"CONTRADICTS "+id);old.put("updated",now);break;} else if(!detected.isEmpty() && o.optString("relation").isEmpty()){o.put("relation",detected+" "+old.optString("id"));} else if("CONTRADICTS".equals(prediction.label) && prediction.probability>=0.55 && pairSimilarity>=0.45){if(o.optString("relation").isEmpty())o.put("relation","PREDICTED_CONTRADICTS "+old.optString("id"));}
             }
-            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);a.put(o);write(a);discoverHypotheses();return conflictWith;
+            if(conflictWith.isEmpty())o.put("status",auto&&conf>=threshold()?"ACTIVE":"CANDIDATE");o.put("conflictWith",conflictWith);assignCluster(a,o);a.put(o);write(a);discoverHypotheses();return conflictWith;
         }catch(Exception ignored){return "";}
     }
     public void appendLearningLog(String event){ try{ JSONArray a=readLearningLog(); JSONObject o=new JSONObject(); o.put("time",System.currentTimeMillis()); o.put("event",event); a.put(o); while(a.length()>300) a.remove(0); p.edit().putString(LKEY,a.toString()).apply(); }catch(Exception ignored){} }
@@ -203,7 +344,7 @@ public class MemoryStore {
     public IngestResult ingest(String raw,double conf){
         IngestResult r=new IngestResult();String[] parts=raw.split("[\n.!?;]+");
         for(String part:parts){String s=part.trim();if(s.length()<4||isNonFact(s)){r.ignored++;continue;}
-            List<Item> before=all();boolean sim=false;String bestId="";double bestScore=0;for(Item x:before)if(!"REJECTED".equals(x.status)){double sc=similarity(s,x.text);if(sc>=0.55){sim=true;if(sc>bestScore){bestScore=sc;bestId=x.id;}}}
+            List<Item> before=all();boolean sim=false;String bestId="";double bestScore=0;for(Item x:before)if(!"REJECTED".equals(x.status)&&!"LOCAL_INFERENCE".equals(x.source)){double sc=similarity(s,x.text);if(sc>=0.55){sim=true;if(sc>bestScore){bestScore=sc;bestId=x.id;}}}
             if(sim && bestScore>=0.80){
                 r.similar++;
                 boolean promoted=reinforce(bestId,s,conf);
@@ -246,9 +387,9 @@ public class MemoryStore {
     public List<Hypothesis> hypotheses(){List<Hypothesis> r=new ArrayList<>();try{JSONArray a=new JSONArray(p.getString(HKEY,"[]"));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);r.add(new Hypothesis(o.optString("id"),o.optString("rule"),o.optString("evidence"),o.optString("status","CANDIDATE"),o.optString("version","1"),o.optInt("support")));}}catch(Exception ignored){}return r;}
     private JSONArray readHyp(){try{return new JSONArray(p.getString(HKEY,"[]"));}catch(Exception e){return new JSONArray();}}
     private void writeHyp(JSONArray a){p.edit().putString(HKEY,a.toString()).apply();}
-    public void learnHypothesis(String id,boolean accepted){JSONArray a=readHyp();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){o.put("status",accepted?"ACTIVE":"REJECTED");o.put("version",Integer.toString(o.optInt("version",1)+1));o.put("learningSignal",accepted?"USER_CONFIRMED":"USER_REJECTED");o.put("updated",System.currentTimeMillis());break;}}catch(Exception ignored){}writeHyp(a);}
+    public void learnHypothesis(String id,boolean accepted){JSONArray a=readHyp();for(int i=0;i<a.length();i++)try{JSONObject o=a.getJSONObject(i);if(id.equals(o.optString("id"))){o.put("status",accepted?"ACTIVE":"REJECTED");o.put("version",Integer.toString(o.optInt("version",1)+1));o.put("learningSignal",accepted?"USER_CONFIRMED":"USER_REJECTED");o.put("updated",System.currentTimeMillis());break;}}catch(Exception ignored){}writeHyp(a);setConclusionStatus("hypothesis:"+id,accepted?"ACTIVE":"REJECTED",accepted?"USER_CONFIRMED_HYPOTHESIS":"USER_REJECTED_HYPOTHESIS");}
     public int discoverHypotheses(){
-        List<Item> items=all();
+        List<Item> items=new ArrayList<>(); for(Item x:all()) if(!"LOCAL_INFERENCE".equals(x.source)) items.add(x);
         java.util.HashMap<String,java.util.HashSet<String>> groups=new java.util.HashMap<>();
         for(int i=0;i<items.size();i++)for(int j=i+1;j<items.size();j++){
             String[] a=norm(items.get(i).text).split(" "),b=norm(items.get(j).text).split(" ");
@@ -291,7 +432,19 @@ public class MemoryStore {
                 }
             }catch(Exception ignored){}
         }
-        if(created>0)writeHyp(h); else writeHyp(h);
+        // Every discovered pattern also becomes a modest, persistent conclusion candidate.
+        // It is stored in MemoryStore for future clustering, but excluded from evidence used
+        // to discover patterns so the agent cannot "prove itself" with its own conclusions.
+        for(int i=0;i<h.length();i++){
+            JSONObject hyp=h.optJSONObject(i); if(hyp==null) continue;
+            String hid=hyp.optString("id");
+            int support=Math.max(1,hyp.optInt("support",1));
+            String conclusion=hyp.optString("rule");
+            String basis="hypothesisId="+hid+"; evidence="+hyp.optString("evidence")+"; hypothesisStatus="+hyp.optString("status");
+            String conclusionStatus="REJECTED".equals(hyp.optString("status"))?"REJECTED":"CANDIDATE";
+            upsertPreliminaryConclusion("hypothesis:"+hid,conclusion,"LOCAL_PATTERN",basis,0.25+Math.min(6,support)*0.04,support,conclusionStatus);
+        }
+        writeHyp(h);
         return created;
     }
     private String signature(String[] a,int diff){StringBuilder s=new StringBuilder();for(int i=0;i<a.length;i++)if(i!=diff)s.append(a[i]).append(" ");return s.toString().trim();}
