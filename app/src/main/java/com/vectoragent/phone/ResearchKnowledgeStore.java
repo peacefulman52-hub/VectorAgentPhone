@@ -433,8 +433,22 @@ public final class ResearchKnowledgeStore {
                     JSONObject item = findObservation(observations, id);
                     if (item == null) continue;
                     out.append("\n  • ").append(item.optString("text"));
-                    out.append("\n    ").append(item.optString("relationToCluster"))
-                       .append(" · ").append(item.optString("sourceDomain", "источник не определён"));
+                    out.append("\n    ").append(item.optString("status", "PRELIMINARY"))
+                       .append(" · уверенность ").append(Math.round(item.optDouble("confidence", 0.25) * 100)).append("%");
+                    if ("AGENT_PRELIMINARY_CONCLUSION".equals(item.optString("origin"))) {
+                        out.append(" · предварительный вывод агента");
+                    } else {
+                        out.append(" · извлечённое наблюдение");
+                    }
+                    out.append("\n    Связь: ").append(item.optString("relationToCluster"))
+                       .append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
+                    String basis = item.optString("basis", "");
+                    if (!basis.isEmpty()) out.append("\n    Основание: ")
+                            .append(basis.length() > 160 ? basis.substring(0, 157) + "…" : basis);
+                    JSONArray evidence = item.optJSONArray("evidenceUrls");
+                    if (evidence != null && evidence.length() > 0) {
+                        out.append("\n    Ссылок-оснований: ").append(evidence.length());
+                    }
                     added++;
                 }
             }
