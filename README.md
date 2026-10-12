@@ -23,6 +23,16 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
+## v3.6.5 — Cautious takeaways and regression tests
+
+- Each successful source-attributed research run now adds one modest extractive takeaway alongside the original observations. The takeaway cites the source material and explicitly says it is not a verified fact or proof that sources are independent.
+- Similarity links point back to a source observation ID. Derived takeaways remain in the same local cluster but are excluded from the evidence-matching pool, so one conclusion cannot become independent evidence for another.
+- Possible numeric or negation conflicts remain separate preliminary records with an explicit source-observation basis.
+- A finding without a traceable URL is not usable progress. If extraction produces no attributed observation, the report may be retained for diagnosis but the topic stays incomplete.
+- Offline Robolectric regression tests cover source-block URL attribution, footer exclusion, ambiguous/missing URL refusal, exact same-source repeat handling, related-but-distinct clustering, numeric and negation warnings, derived-takeaway linkage, and empty extraction.
+- GitHub Actions runs `testDebugUnitTest` before assembling the APK. CI still cannot replace a real Android network/persistence test.
+- This feature is entirely local after downloading public pages and requires no paid API key. Its takeaway generation is extractive/heuristic, not LLM-level synthesis.
+
 ## v3.6.4 — Cautious findings and similarity clusters
 
 - An opt-in Android WorkManager cycle stores and notifies about the next useful task.
