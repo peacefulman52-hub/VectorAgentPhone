@@ -112,10 +112,13 @@ public class MainActivity extends Activity {
                     saved.append("\\n\\nИсточники:");
                     for(String u:rr.urls) saved.append("\\n• ").append(u);
                 }
-                rememberContext("Бесплатное исследование: "+target,saved.toString());
+                String savedText=saved.toString();
                 store.appendLearningLog("FREE_WEB_RESEARCH: "+target+" | sources="+(rr.urls==null?0:rr.urls.length)+" | saved outside factual MemoryStore");
-                runOnUiThread(()->addBubble("Веб-исследователь","Результат бесплатного веб-исследования:\\n"+saved
-                        +"\\n\\nОтчёт сохранён в истории контекста, не добавлен как факт в MemoryStore."));
+                runOnUiThread(()->{
+                    rememberContext("Бесплатное исследование: "+target,savedText);
+                    addBubble("Веб-исследователь","Результат бесплатного веб-исследования:\\n"+savedText
+                        +"\\n\\nОтчёт сохранён в истории контекста, не добавлен как факт в MemoryStore.");
+                });
             }catch(Exception e){
                 String message=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();
                 if(message.length()>240) message=message.substring(0,240)+"…";
@@ -199,10 +202,8 @@ public class MainActivity extends Activity {
     }
     void showSettings(){
         content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.4: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
-        content.addView(tv("🤖 Подключение ИИ-учителя",17));
-        content.addView(tv("ИИ-учитель использует OpenAI Responses API и веб-поиск, чтобы находить внешние свидетельства. Результат не считается независимым источником сам по себе; приложение извлекает домены найденных источников и использует их как отдельные свидетельства.",12));
-        EditText apiKey=new EditText(this);apiKey.setHint("OpenAI API key (sk-...)");apiKey.setSingleLine(true);apiKey.setInputType(129);apiKey.setText(getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key",""));content.addView(apiKey);
-        Button saveKey=btn("Сохранить API key");content.addView(saveKey);saveKey.setOnClickListener(v->{getSharedPreferences("vector_settings",MODE_PRIVATE).edit().putString("openai_key",apiKey.getText().toString().trim()).apply();toast("API key сохранён на устройстве");});
+        content.addView(tv("🌐 Бесплатный веб-исследователь",17));
+        content.addView(tv("Ищет публичные страницы без платного API и без API-ключа, извлекает тематические фрагменты и сохраняет отчёт со ссылками в истории контекста. Сайты могут ограничивать автоматические запросы; локальный обзор не является проверкой истины и не изменяет фактическую память.",12));
         
         addSetting("Автоактивация","Если включена, новое наблюдение получает ACTIVE при достаточной уверенности и отсутствии конфликта.",autoSwitch());
         content.addView(tv("Порог уверенности",17));content.addView(tv("Это порог состояния, а не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});
