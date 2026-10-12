@@ -157,6 +157,22 @@ public final class ResearchKnowledgeStore {
                 relation = classifyRelation(text, match.referenceText);
             }
 
+            String referenceId = match == null ? "" : match.referenceId;
+            String preliminaryConclusion;
+            double conclusionConfidence;
+            if ("POSSIBLE_CONTRADICTION_OR_CONDITION".equals(relation)) {
+                preliminaryConclusion = "Возможно противоречие или различие условий с наблюдением "
+                        + referenceId + ". Нужно сверить даты, определения и контекст; это не автоматическое опровержение.";
+                conclusionConfidence = 0.20;
+            } else if (match != null) {
+                preliminaryConclusion = "Найдено тематически похожее, но отдельное наблюдение "
+                        + referenceId + ". Общая закономерность пока не подтверждена.";
+                conclusionConfidence = 0.25;
+            } else {
+                preliminaryConclusion = "Пока отдельное предварительное наблюдение: похожая исходная запись не найдена.";
+                conclusionConfidence = 0.15;
+            }
+
             String id = "obs-" + Long.toHexString(now) + "-" + observations.length();
             JSONObject observation = new JSONObject();
             observation.put("id", id);
@@ -164,6 +180,7 @@ public final class ResearchKnowledgeStore {
             observation.put("clusterId", clusterId);
             observation.put("relationToCluster", relation);
             observation.put("similarityToCluster", similarity);
+            observation.put("similarToObservationId", referenceId);
             observation.put("reportTitle", title == null ? "" : title);
             observation.put("researchQuestion", question == null ? "" : question);
             observation.put("sourceUrl", url);
@@ -173,6 +190,11 @@ public final class ResearchKnowledgeStore {
             observation.put("basis", f.basis);
             observation.put("status", "PRELIMINARY");
             observation.put("confidence", f.confidence);
+            observation.put("preliminaryConclusion", preliminaryConclusion);
+            observation.put("conclusionStatus", "CANDIDATE");
+            observation.put("conclusionConfidence", conclusionConfidence);
+            observation.put("conclusionBasis", "Локальная эвристика текстового сходства, отрицаний и чисел; не оценка истинности.");
+            observation.put("basisObservationId", referenceId);
             observation.put("repeatCount", 1);
             observation.put("observedAt", now);
             observation.put("lastSeenAt", now);
@@ -219,10 +241,10 @@ public final class ResearchKnowledgeStore {
     }
 
     private static final class ClusterMatch {
-        String clusterId, referenceText;
+        String clusterId, referenceText, referenceId;
         double score;
-        ClusterMatch(String id, String text, double score) {
-            clusterId = id; referenceText = text; this.score = score;
+        ClusterMatch(String id, String text, String referenceId, double score) {
+            clusterId = id; referenceText = text; this.referenceId = referenceId; this.score = score;
         }
     }
 
@@ -238,10 +260,13 @@ public final class ResearchKnowledgeStore {
                 for (int k = observations.length() - 1; k >= 0; k--) {
                     JSONObject old = observations.optJSONObject(k);
                     if (old == null || !id.equals(old.optString("id"))) continue;
+                    // Derived conclusions may be cluster members, but must never
+                    // become supporting evidence for another finding or conclusion.
+                    if (!"FREE_WEB_EXTRACT".equals(old.optString("origin", "FREE_WEB_EXTRACT"))) break;
                     String previousText = old.optString("text");
                     double score = similarity(text, previousText);
                     if (score >= 0.27 && (best == null || score > best.score)) {
-                        best = new ClusterMatch(cluster.optString("id"), previousText, score);
+                        best = new ClusterMatch(cluster.optString("id"), previousText, id, score);
                     }
                     break;
                 }
@@ -320,6 +345,34 @@ public final class ResearchKnowledgeStore {
             out.add(Double.parseDouble(m.group().replace(',', '.')));
         } catch (Exception ignored) {}
         return out;
+    }
+
+    /**
+     * Drafts a deliberately modest extractive takeaway. It describes what was observed,
+     * not whether the topic's substantive claim is true. It is stored as LOCAL_INFERENCE
+     * and must never count as independent source evidence.
+     */
+    public static synchronized String draftConservativeConclusion(
+            String title, String question, String report, String[] urls) {
+        List<Finding> findings = extractFindings(report, urls);
+        if (findings.isEmpty()) return "";
+        Finding first = findings.get(0);
+        if (first == null || first.text == null || first.text.trim().length() < 35 || safeUrl(first.url).isEmpty()) {
+            return "";
+        }
+        Set<String> sourceDomains = new LinkedHashSet<>();
+        for (Finding finding : findings) {
+            String d = domain(finding.url);
+            if (!d.isEmpty()) sourceDomains.add(d);
+        }
+        String topic = title == null ? "" : title.trim();
+        if (topic.isEmpty()) topic = question == null ? "исследованной теме" : shorten(question.trim(), 90);
+        topic = shorten(topic, 90);
+        return "Предварительная сводка по теме «" + topic + "»: найден фрагмент «"
+                + shorten(first.text, 210) + "». Извлечено фрагментов с источниками: "
+                + findings.size() + "; доменов: " + sourceDomains.size()
+                + ". Это не подтверждённый факт и не доказательство независимости источников; "
+                + "следующий шаг — сверить первоисточник, дату, определения и условия.";
     }
 
     private static List<Finding> extractFindings(String report, String[] urls) {
@@ -470,6 +523,11 @@ public final class ResearchKnowledgeStore {
                     }
                     out.append("\n    Связь: ").append(item.optString("relationToCluster"))
                        .append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
+                    String conclusion = item.optString("preliminaryConclusion", "");
+                    if (!conclusion.isEmpty()) out.append("\n    Предварительный вывод: ")
+                            .append(conclusion.length() > 200 ? conclusion.substring(0, 197) + "…" : conclusion);
+                    String basisId = item.optString("basisObservationId", "");
+                    if (!basisId.isEmpty()) out.append("\n    Сопоставлено с observation: ").append(basisId);
                     String basis = item.optString("basis", "");
                     if (!basis.isEmpty()) out.append("\n    Основание: ")
                             .append(basis.length() > 160 ? basis.substring(0, 157) + "…" : basis);
