@@ -106,8 +106,9 @@ public final class ResearchKnowledgeStore {
             String text = shorten(f.text, MAX_TEXT);
             int minLength = "AGENT_PRELIMINARY_CONCLUSION".equals(f.origin) ? 20 : 35;
             if (text.length() < minLength) continue;
-            usableFindings++;
             String url = safeUrl(f.url);
+            if ("FREE_WEB_EXTRACT".equals(f.origin) && url.isEmpty()) continue;
+            usableFindings++;
             String key = normalize(text);
             boolean duplicate = false;
             for (int i = 0; i < observations.length(); i++) {
@@ -324,13 +325,14 @@ public final class ResearchKnowledgeStore {
     private static List<Finding> extractFindings(String report, String[] urls) {
         List<Finding> out = new ArrayList<>();
         String currentUrl = "";
+        String fallbackUrl = singleUnambiguousUrl(urls);
         boolean capture = false;
         String[] lines = report.split("\\r?\\n");
         for (String raw : lines) {
             String line = raw.trim();
             if (line.matches("^\\d+\\.\\s+.*")) capture = false;
             if (line.startsWith("URL:")) {
-                currentUrl = line.substring(4).trim();
+                currentUrl = safeUrl(line.substring(4).trim());
                 continue;
             }
             if (line.startsWith("Фрагменты страницы:") ||
@@ -346,10 +348,25 @@ public final class ResearchKnowledgeStore {
             }
             if (!capture || line.isEmpty()) continue;
             if (line.startsWith("•")) line = line.substring(1).trim();
-            if (line.length() >= 35 && !line.startsWith("Домен:"))
-                out.add(new Finding(line, currentUrl));
+            String attributedUrl = currentUrl.isEmpty() ? fallbackUrl : currentUrl;
+            // A snippet without a traceable source is not usable web evidence.
+            if (line.length() >= 35 && !line.startsWith("Домен:") && !attributedUrl.isEmpty())
+                out.add(new Finding(line, attributedUrl));
         }
         return out;
+    }
+
+    /** Use the report URL list only if it identifies exactly one valid source. */
+    private static String singleUnambiguousUrl(String[] urls) {
+        String only = "";
+        if (urls == null) return "";
+        for (String raw : urls) {
+            String valid = safeUrl(raw);
+            if (valid.isEmpty()) continue;
+            if (only.isEmpty()) only = valid;
+            else if (!only.equals(valid)) return "";
+        }
+        return only;
     }
 
     private static JSONArray readArray(String value) {
@@ -380,7 +397,15 @@ public final class ResearchKnowledgeStore {
     private static String safeUrl(String url) {
         if (url == null) return "";
         String value = url.trim();
-        return value.startsWith("https://") || value.startsWith("http://") ? value : "";
+        try {
+            URL parsed = new URL(value);
+            String scheme = parsed.getProtocol();
+            if (("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
+                    && parsed.getHost() != null && !parsed.getHost().trim().isEmpty()) {
+                return value;
+            }
+        } catch (Exception ignored) {}
+        return "";
     }
 
     private static String domain(String url) {
