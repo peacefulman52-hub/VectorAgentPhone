@@ -25,7 +25,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>(); ArrayList<String[]> chatTranscript = new ArrayList<>();
-    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list,clusterView; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -173,7 +173,13 @@ public class MainActivity extends Activity {
         content.addView(tv("🧪 Журнал обучения",18));
         List<String> logs=store.learningLog(); if(logs.isEmpty()) content.addView(tv("Пока нет событий.",13)); else { int from=Math.max(0,logs.size()-25); for(int i=from;i<logs.size();i++) content.addView(tv("• "+logs.get(i),12)); }
         content.addView(tv("🔬 Гипотезы — закономерности, найденные системой",18));
-        content.addView(tv("Агент может сам перевести повторяемую закономерность в ACTIVE, если накоплено не менее 3 пар и 2 проверочных шага без известных контрпримеров. Кнопки ниже остаются ручным способом дополнительно подтвердить или отклонить гипотезу.",12));LinearLayout hyps=new LinearLayout(this);hyps.setOrientation(LinearLayout.VERTICAL);content.addView(hyps);refreshHypotheses(hyps);content.addView(tv("Факты",18));list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);content.addView(list);refresh();
+        content.addView(tv("Агент может сам перевести повторяемую закономерность в ACTIVE, если накоплено не менее 3 пар и 2 проверочных шага без известных контрпримеров. Кнопки ниже остаются ручным способом дополнительно подтвердить или отклонить гипотезу.",12));LinearLayout hyps=new LinearLayout(this);hyps.setOrientation(LinearLayout.VERTICAL);content.addView(hyps);refreshHypotheses(hyps);
+        LinearLayout clusterHeader=new LinearLayout(this);clusterHeader.setGravity(Gravity.CENTER_VERTICAL);
+        TextView clusterTitle=tv("🧩 Кластеры похожих выводов",18);clusterHeader.addView(clusterTitle,new LinearLayout.LayoutParams(0,-2,1));
+        Button clusterToggle=btn("▾ Показать");clusterHeader.addView(clusterToggle);content.addView(clusterHeader);
+        clusterView=new LinearLayout(this);clusterView.setOrientation(LinearLayout.VERTICAL);clusterView.setVisibility(View.GONE);content.addView(clusterView);
+        clusterToggle.setOnClickListener(v->{boolean show=clusterView.getVisibility()!=View.VISIBLE;clusterView.setVisibility(show?View.VISIBLE:View.GONE);clusterToggle.setText(show?"▴ Скрыть":"▾ Показать");});
+        content.addView(tv("Факты и предварительные выводы",18));list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);content.addView(list);refresh();
     }
     void refreshHypotheses(LinearLayout hyps){
         hyps.removeAllViews();List<MemoryStore.Hypothesis> hs=store.hypotheses();if(hs.isEmpty()){hyps.addView(tv("Пока нет кандидатов. Дай несколько пар примеров с одинаковой структурой.",13));return;}
@@ -181,8 +187,31 @@ public class MainActivity extends Activity {
     }
     void refresh(){
         if(list==null||stats==null)return;list.removeAllViews();stats.setText("CANDIDATE "+store.count("CANDIDATE")+" • ACTIVE "+store.count("ACTIVE")+" • CONFLICT "+store.count("CONFLICT")+" • REJECTED "+store.count("REJECTED")+" • HYP "+store.hypotheses().size());
+        refreshClusters();
         List<MemoryStore.Item> items=store.all();if(items.isEmpty()){list.addView(tv("Память пока пуста.",14));return;}
-        for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));TextView h=tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version,14);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("Источник: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("Provenance: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("Связь: "+x.relation,11));LinearLayout a=new LinearLayout(this);Button yes=btn("✓ Подтвердить"),no=btn("✕ Отклонить");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);}
+        for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));TextView h=tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version,14);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("Источник: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("Происхождение: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("Связь: "+x.relation,11));LinearLayout a=new LinearLayout(this);Button yes=btn("✓ Подтвердить"),no=btn("✕ Отклонить");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);}
+    }
+
+    void refreshClusters(){
+        if(clusterView==null)return;
+        clusterView.removeAllViews();
+        List<MemoryStore.ConclusionCluster> groups=store.clusters();
+        int multi=0,lonely=0,totalGrouped=0;
+        for(MemoryStore.ConclusionCluster c:groups){if(c.members.size()>1){multi++;totalGrouped+=c.members.size();}else lonely++;}
+        clusterView.addView(tv("Групп: "+multi+" • записей в группах: "+totalGrouped+" • пока без похожих соседей: "+lonely,12));
+        if(multi==0){clusterView.addView(tv("Пока нет нескольких похожих выводов. Новые предварительные выводы будут сохраняться отдельно и присоединяться к группе, когда появятся достаточно близкие по смыслу записи.",13));return;}
+        for(MemoryStore.ConclusionCluster c:groups){
+            if(c.members.size()<2)continue;
+            LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(8),dp(8),dp(8),dp(8));card.setBackground(bg(Color.rgb(247,247,242),14));
+            card.addView(tv("Кластер • "+c.members.size()+" отдельных записей • ACTIVE "+c.active+" / CANDIDATE "+c.candidate+" / CONFLICT "+c.conflict,13));
+            for(int i=0;i<c.members.size()&&i<8;i++){
+                MemoryStore.Item item=c.members.get(i);
+                String type="LOCAL_INFERENCE".equals(item.source)?" · предварительный вывод":" · наблюдение";
+                card.addView(tv("• "+item.text+" ["+item.status+"]"+type,13));
+            }
+            if(c.members.size()>8)card.addView(tv("… и ещё "+(c.members.size()-8)+" записей",12));
+            clusterView.addView(card);
+        }
     }
     void showSettings(){
         content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.4: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
