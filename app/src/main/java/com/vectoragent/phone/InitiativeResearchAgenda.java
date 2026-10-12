@@ -134,9 +134,12 @@ public final class InitiativeResearchAgenda {
     }
 
     /** Save report and source URLs; only a successfully researched agenda topic is marked complete. */
-    public static synchronized void saveResult(Context context, String topicId, String title,
-                                               String question, String report, String[] urls) {
+    public static synchronized int saveResult(Context context, String topicId, String title,
+                                              String question, String report, String[] urls) {
         ensureSeeded(context);
+        // Store weak but usable source observations in the knowledge clusters before
+        // deciding whether this research task has actually produced anything learnable.
+        int observationCount = ResearchKnowledgeStore.ingestReport(context, title, question, report, urls);
         SharedPreferences p=prefs(context);
         long now=System.currentTimeMillis();
         JSONArray safeUrls=new JSONArray();
@@ -148,16 +151,16 @@ public final class InitiativeResearchAgenda {
             result.put("topicId",topicId==null?"":topicId); result.put("title",title==null?"":title);
             result.put("question",question==null?"":question); result.put("report",report==null?"":report);
             result.put("urls",safeUrls); result.put("createdAt",now);
+            result.put("observationCount", observationCount);
             history.put(result);
             while(history.length()>50) history.remove(0);
             p.edit().putString(RESULTS,history.toString()).apply();
         } catch(Exception ignored) {}
 
-        // Every useful web report feeds the preliminary knowledge graph, even when its conclusions are weak.
-        // This store keeps observations separate and never promotes them to factual MemoryStore.
-        ResearchKnowledgeStore.ingestReport(context, title, question, report, urls);
-
-        if(topicId==null || topicId.isEmpty() || report==null || report.trim().isEmpty()) return;
+        // An empty extraction is saved as a diagnostic report, but not counted as progress.
+        // The topic stays incomplete so the agent may retry with another query/provider.
+        if(topicId==null || topicId.isEmpty() || report==null || report.trim().isEmpty()
+                || observationCount <= 0) return observationCount;
         try {
             JSONArray a=new JSONArray(p.getString(TOPICS,"[]"));
             for(int i=0;i<a.length();i++){
@@ -169,6 +172,7 @@ public final class InitiativeResearchAgenda {
                 break;
             }
         } catch(Exception ignored) {}
+        return observationCount;
     }
 
     public static synchronized boolean hasSuccessfulResearchForQuestion(Context context, String question) {
@@ -179,7 +183,8 @@ public final class InitiativeResearchAgenda {
             for(int i=a.length()-1;i>=0;i--) {
                 JSONObject o=a.optJSONObject(i);
                 if(o!=null && question.trim().equals(o.optString("question").trim())
-                        && !o.optString("report").trim().isEmpty()) return true;
+                        && !o.optString("report").trim().isEmpty()
+                        && o.optInt("observationCount", -1) != 0) return true;
             }
         } catch(Exception ignored) {}
         return false;
@@ -192,7 +197,16 @@ public final class InitiativeResearchAgenda {
             if(a.length()==0) return "Исследований пока нет. Первый вопрос уже подготовлен в программе.";
             JSONObject o=a.getJSONObject(a.length()-1);
             StringBuilder s=new StringBuilder();
-            s.append("Последнее исследование: ").append(o.optString("title")).append("\n\n");
+            s.append("Последнее исследование: ").append(o.optString("title")).append("\n");
+            int observationCount = o.optInt("observationCount", -1);
+            if (observationCount == 0) {
+                s.append("⚠ Отчёт сохранён, но пригодных наблюдений не извлечено. Задача остаётся незавершённой.\n\n");
+            } else if (observationCount > 0) {
+                s.append("Сохранено предварительных наблюдений: ").append(observationCount)
+                        .append(". Они останутся гипотезами/наблюдениями, пока не получат отдельную проверку.\n\n");
+            } else {
+                s.append("\n");
+            }
             s.append(o.optString("report",""));
             JSONArray urls=o.optJSONArray("urls");
             if(urls!=null && urls.length()>0){
