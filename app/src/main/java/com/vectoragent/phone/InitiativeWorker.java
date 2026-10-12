@@ -13,8 +13,8 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 /**
- * When the user explicitly enables daily research and has configured an API key,
- * researches at most the next unresolved task once per scheduled run. It never
+ * When the user explicitly enables daily research, uses keyless public web search
+ * for at most one unresolved task per scheduled run. It never
  * changes MemoryStore facts or executes commands in other apps.
  */
 public final class InitiativeWorker extends Worker {
