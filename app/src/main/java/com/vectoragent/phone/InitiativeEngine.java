@@ -84,7 +84,8 @@ public final class InitiativeEngine {
             else if ("CONFLICT".equals(item.status)) conflict++;
             else if ("REJECTED".equals(item.status)) rejected++;
 
-            if ("CONFLICT".equals(item.status)) {
+            if ("CONFLICT".equals(item.status)
+                    && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(app, item.text)) {
                 Task t = new Task();
                 t.type = "CONFLICT"; t.id = item.id; t.priority = 100; t.created = item.created;
                 t.title = "Проверить противоречие";
@@ -92,7 +93,8 @@ public final class InitiativeEngine {
                 t.nextStep = "Найти независимое свидетельство по этому утверждению. Сохранить обе версии до появления достаточных доказательств.";
                 t.fingerprint = t.type + "|" + item.id + "|" + item.updated + "|" + item.status;
                 tasks.add(t);
-            } else if ("CANDIDATE".equals(item.status)) {
+            } else if ("CANDIDATE".equals(item.status)
+                    && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(app, item.text)) {
                 Task t = new Task();
                 t.type = "CANDIDATE"; t.id = item.id; t.priority = 70; t.created = item.created;
                 t.title = "Проверить новое утверждение";
@@ -106,12 +108,14 @@ public final class InitiativeEngine {
         int hypothesisCount = 0;
         for (MemoryStore.Hypothesis h : store.hypotheses()) {
             hypothesisCount++;
-            if (!"REJECTED".equals(h.status) && !"ACTIVE".equals(h.status)) {
+            String hypothesisQuestion = "Проверить гипотезу: " + h.rule + " Основание: " + h.evidence;
+            if (!"REJECTED".equals(h.status) && !"ACTIVE".equals(h.status)
+                    && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(app, hypothesisQuestion)) {
                 Task t = new Task();
                 t.type = "HYPOTHESIS"; t.id = h.id; t.priority = 60; t.created = 0;
                 t.title = "Провести различающий эксперимент";
                 t.reason = "Осталась непроверенная гипотеза: «" + h.rule + "». Основание: " + h.evidence;
-                t.nextStep = "Сформулировать новый пример, на котором конкурирующие объяснения дадут разные прогнозы, и сравнить результат с прогнозом.";
+                t.nextStep = hypothesisQuestion;
                 t.fingerprint = t.type + "|" + h.id + "|" + h.version + "|" + h.support + "|" + h.status;
                 tasks.add(t);
             }
