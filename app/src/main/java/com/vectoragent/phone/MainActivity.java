@@ -122,7 +122,8 @@ public class MainActivity extends Activity {
             }catch(Exception e){
                 String message=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();
                 if(message.length()>240) message=message.substring(0,240)+"…";
-                runOnUiThread(()->addBubble("Веб-исследователь","Бесплатный поиск не выполнен: "+message));
+                final String safeMessage=message;
+                runOnUiThread(()->addBubble("Веб-исследователь","Бесплатный поиск не выполнен: "+safeMessage));
             }
         }).start();
     }
