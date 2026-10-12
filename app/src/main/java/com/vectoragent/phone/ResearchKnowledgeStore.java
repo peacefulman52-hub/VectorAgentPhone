@@ -133,8 +133,49 @@ public final class ResearchKnowledgeStore {
                 old.put("conclusionConfidence", confidence);
                 old.put("lastSeenAt", now);
                 old.put("updatedAt", now);
+
+                // New source-backed observations can arrive after this hypothesis was created.
+                // Re-check clustering on update so an initially isolated hypothesis can join
+                // the later source cluster without becoming evidence itself.
+                ClusterMatch laterMatch = findCluster(observations, clusters, text);
+                if (laterMatch != null) {
+                    String previousClusterId = old.optString("clusterId", "");
+                    if (!laterMatch.clusterId.equals(previousClusterId)) {
+                        for (int j = clusters.length() - 1; j >= 0; j--) {
+                            JSONObject previousCluster = clusters.optJSONObject(j);
+                            if (previousCluster == null
+                                    || !previousClusterId.equals(previousCluster.optString("id"))) continue;
+                            JSONArray priorMembers = previousCluster.optJSONArray("members");
+                            JSONArray remaining = new JSONArray();
+                            if (priorMembers != null) for (int z = 0; z < priorMembers.length(); z++) {
+                                String memberId = priorMembers.optString(z);
+                                if (!old.optString("id").equals(memberId)) remaining.put(memberId);
+                            }
+                            previousCluster.put("members", remaining);
+                            previousCluster.put("updatedAt", now);
+                            if (remaining.length() == 0) clusters.remove(j);
+                            break;
+                        }
+                    }
+                    JSONObject targetCluster = findClusterById(clusters, laterMatch.clusterId);
+                    if (targetCluster != null) {
+                        JSONArray members = targetCluster.optJSONArray("members");
+                        if (members == null) members = new JSONArray();
+                        if (!containsString(members, old.optString("id"))) members.put(old.optString("id"));
+                        targetCluster.put("members", members);
+                        targetCluster.put("updatedAt", now);
+                    }
+                    old.put("clusterId", laterMatch.clusterId);
+                    old.put("relationToCluster", "SIMILAR_TO_SOURCE_OBSERVATION");
+                    old.put("similarityToCluster", laterMatch.score);
+                    old.put("similarToObservationId", laterMatch.referenceId);
+                    old.put("preliminaryConclusion", "Гипотеза тематически похожа на исходное наблюдение "
+                            + laterMatch.referenceId + "; это сходство, а не независимое подтверждение.");
+                }
+
                 // repeatCount deliberately does not increase during a scan/update.
-                p.edit().putString(OBSERVATIONS, observations.toString()).apply();
+                p.edit().putString(OBSERVATIONS, observations.toString())
+                        .putString(CLUSTERS, clusters.toString()).apply();
                 return 1;
             } catch (Exception ignored) {
                 return 0;

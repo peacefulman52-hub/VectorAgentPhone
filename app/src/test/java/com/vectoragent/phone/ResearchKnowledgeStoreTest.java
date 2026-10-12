@@ -448,6 +448,49 @@ public class ResearchKnowledgeStoreTest {
         return null;
     }
 
+    @Test
+    public void localHypothesisJoinsSourceClusterWhenEvidenceArrivesLater() throws Exception {
+        String hypothesisId = "late-source-link";
+        String statement = "The Android scheduler may delay background work during battery restrictions on this device.";
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(
+                context, hypothesisId, statement, "local symbolic pattern", "CANDIDATE", 1, "1"));
+
+        JSONObject before = findLocalHypothesis(hypothesisId);
+        assertNotNull(before);
+        String originalHypothesisId = before.getString("id");
+        String localOnlyClusterId = before.getString("clusterId");
+
+        String url = "https://developer.android.com/guide/background";
+        String report = oneSourceReport(url, statement);
+        assertEquals(1, ResearchKnowledgeStore.ingestReport(
+                context, "Android background work", "Research background scheduling", report,
+                new String[]{url}));
+
+        JSONObject raw = null;
+        JSONArray afterSource = observations();
+        for (int i = 0; i < afterSource.length(); i++) {
+            JSONObject row = afterSource.getJSONObject(i);
+            if ("FREE_WEB_EXTRACT".equals(row.optString("origin"))) { raw = row; break; }
+        }
+        assertNotNull(raw);
+        assertNotEquals(localOnlyClusterId, raw.getString("clusterId"));
+
+        int recordsBeforeUpsert = observations().length();
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(
+                context, hypothesisId, statement, "local symbolic pattern", "ACTIVE", 2, "2"));
+
+        JSONObject updated = findLocalHypothesis(hypothesisId);
+        assertNotNull(updated);
+        assertEquals(originalHypothesisId, updated.getString("id"));
+        assertEquals(raw.getString("clusterId"), updated.getString("clusterId"));
+        assertEquals("SIMILAR_TO_SOURCE_OBSERVATION", updated.getString("relationToCluster"));
+        assertEquals(raw.getString("id"), updated.getString("similarToObservationId"));
+        assertEquals("ACTIVE", updated.getString("hypothesisStatus"));
+        assertEquals("", updated.getString("sourceUrl"));
+        assertEquals(0, updated.getJSONArray("evidenceUrls").length());
+        assertEquals(recordsBeforeUpsert, observations().length());
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
