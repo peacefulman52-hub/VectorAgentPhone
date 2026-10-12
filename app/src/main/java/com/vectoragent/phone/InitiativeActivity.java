@@ -108,6 +108,11 @@ public final class InitiativeActivity extends Activity {
     }
 
     private void enableSchedule() {
+        String apiKey = getSharedPreferences("vector_settings", MODE_PRIVATE).getString("openai_key", "").trim();
+        if (apiKey.isEmpty()) {
+            renderStatus("Сначала добавь OpenAI API key в VECTOR → Настройки. Без ключа ежедневное исследование нечего будет выполнять.");
+            return;
+        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
@@ -192,9 +197,9 @@ public final class InitiativeActivity extends Activity {
                 runOnUiThread(() -> {
                     setResearchText(InitiativeResearchAgenda.latestResultText(this));
                     refreshAgenda();
+                    render(InitiativeEngine.scan(this));
                     renderStatus("Исследование сохранено. Найдено URL: " + (result.urls == null ? 0 : result.urls.length)
                             + ". Память фактов не изменялась.");
-                    render(InitiativeEngine.scan(this));
                     researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                 });
             } catch (Exception e) {
