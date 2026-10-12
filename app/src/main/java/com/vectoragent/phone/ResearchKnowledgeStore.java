@@ -33,8 +33,29 @@ public final class ResearchKnowledgeStore {
     private ResearchKnowledgeStore() {}
 
     private static final class Finding {
-        String text, url;
-        Finding(String text, String url) { this.text = text; this.url = url; }
+        String text, url, origin, basis;
+        double confidence;
+        List<String> evidenceUrls;
+
+        Finding(String text, String url) {
+            this(text, url == null || url.trim().isEmpty()
+                            ? Collections.<String>emptyList()
+                            : Collections.singletonList(url),
+                    "FREE_WEB_EXTRACT", 0.25, "");
+        }
+
+        Finding(String text, List<String> evidenceUrls, String origin, double confidence, String basis) {
+            this.text = text == null ? "" : text;
+            this.evidenceUrls = new ArrayList<>();
+            if (evidenceUrls != null) for (String raw : evidenceUrls) {
+                String u = safeUrl(raw);
+                if (!u.isEmpty() && !this.evidenceUrls.contains(u)) this.evidenceUrls.add(u);
+            }
+            this.url = this.evidenceUrls.isEmpty() ? "" : this.evidenceUrls.get(0);
+            this.origin = origin == null ? "FREE_WEB_EXTRACT" : origin;
+            this.confidence = Math.max(0.05, Math.min(0.45, confidence));
+            this.basis = basis == null ? "" : basis.trim();
+        }
     }
 
     /**
@@ -45,21 +66,46 @@ public final class ResearchKnowledgeStore {
     public static synchronized int ingestReport(Context context, String title, String question,
                                                 String report, String[] urls) {
         if (context == null || report == null || report.trim().isEmpty()) return 0;
+        return ingestFindings(context, title, question, extractFindings(report, urls));
+    }
+
+    /**
+     * Adds an agent-authored tentative conclusion to the same cluster graph as extracted
+     * evidence. The statement remains PRELIMINARY, with provenance and low confidence;
+     * it is never promoted to factual MemoryStore.
+     */
+    public static synchronized int addPreliminaryConclusion(Context context, String conclusion,
+            String title, String question, String basis, String[] evidenceUrls, double confidence) {
+        if (context == null || conclusion == null || conclusion.trim().length() < 20) return 0;
+        List<String> evidence = new ArrayList<>();
+        if (evidenceUrls != null) {
+            for (String raw : evidenceUrls) {
+                String url = safeUrl(raw);
+                if (!url.isEmpty() && !evidence.contains(url)) evidence.add(url);
+            }
+        }
+        double cautiousConfidence = Math.max(0.05, Math.min(0.45, confidence));
+        List<Finding> findings = new ArrayList<>();
+        findings.add(new Finding(conclusion.trim(), evidence, "AGENT_PRELIMINARY_CONCLUSION",
+                cautiousConfidence, basis == null ? "" : basis.trim()));
+        return ingestFindings(context, title, question, findings);
+    }
+
+    private static int ingestFindings(Context context, String title, String question,
+                                      List<Finding> findings) {
+        if (context == null || findings == null || findings.isEmpty()) return 0;
         Context app = context.getApplicationContext();
         SharedPreferences p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         JSONArray observations = readArray(p.getString(OBSERVATIONS, "[]"));
         JSONArray clusters = readArray(p.getString(CLUSTERS, "[]"));
-        List<Finding> findings = extractFindings(report, urls);
-        // Never turn a report header or a bare link into a fake finding.
-        if (findings.isEmpty()) return 0;
-
         int added = 0;
         int usableFindings = 0;
         long now = System.currentTimeMillis();
         try {
         for (Finding f : findings) {
             String text = shorten(f.text, MAX_TEXT);
-            if (text.length() < 35) continue;
+            int minLength = "AGENT_PRELIMINARY_CONCLUSION".equals(f.origin) ? 20 : 35;
+            if (text.length() < minLength) continue;
             usableFindings++;
             String url = safeUrl(f.url);
             String key = normalize(text);
@@ -68,9 +114,21 @@ public final class ResearchKnowledgeStore {
                 JSONObject old = observations.optJSONObject(i);
                 if (old == null) continue;
                 if (key.equals(normalize(old.optString("text")))
-                        && url.equals(old.optString("sourceUrl"))) {
+                        && url.equals(old.optString("sourceUrl"))
+                        && f.origin.equals(old.optString("origin", "FREE_WEB_EXTRACT"))) {
                     old.put("repeatCount", old.optInt("repeatCount", 1) + 1);
                     old.put("lastSeenAt", now);
+                    JSONArray priorEvidence = old.optJSONArray("evidenceUrls");
+                    if (priorEvidence == null) priorEvidence = new JSONArray();
+                    for (String evidenceUrl : f.evidenceUrls) {
+                        if (!safeUrl(evidenceUrl).isEmpty() && !containsString(priorEvidence, safeUrl(evidenceUrl))) {
+                            priorEvidence.put(safeUrl(evidenceUrl));
+                        }
+                    }
+                    old.put("evidenceUrls", priorEvidence);
+                    if (!f.basis.isEmpty()) old.put("basis", f.basis);
+                    old.put("confidence", Math.min(0.45,
+                            Math.max(old.optDouble("confidence", 0.25), f.confidence)));
                     duplicate = true;
                     break;
                 }
@@ -109,9 +167,11 @@ public final class ResearchKnowledgeStore {
             observation.put("researchQuestion", question == null ? "" : question);
             observation.put("sourceUrl", url);
             observation.put("sourceDomain", domain(url));
-            observation.put("origin", "FREE_WEB_EXTRACT");
+            observation.put("evidenceUrls", toJsonArray(f.evidenceUrls));
+            observation.put("origin", f.origin);
+            observation.put("basis", f.basis);
             observation.put("status", "PRELIMINARY");
-            observation.put("confidence", 0.25);
+            observation.put("confidence", f.confidence);
             observation.put("repeatCount", 1);
             observation.put("observedAt", now);
             observation.put("lastSeenAt", now);
@@ -294,6 +354,22 @@ public final class ResearchKnowledgeStore {
 
     private static JSONArray readArray(String value) {
         try { return new JSONArray(value); } catch (Exception ignored) { return new JSONArray(); }
+    }
+
+    private static JSONArray toJsonArray(List<String> values) {
+        JSONArray out = new JSONArray();
+        if (values != null) for (String value : values) {
+            String url = safeUrl(value);
+            if (!url.isEmpty() && !containsString(out, url)) out.put(url);
+        }
+        return out;
+    }
+
+    private static boolean containsString(JSONArray values, String value) {
+        for (int i = 0; i < values.length(); i++) {
+            if (value.equals(values.optString(i))) return true;
+        }
+        return false;
     }
 
     private static String normalize(String text) {
