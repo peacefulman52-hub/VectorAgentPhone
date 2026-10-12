@@ -66,7 +66,13 @@ public final class ResearchKnowledgeStore {
     public static synchronized int ingestReport(Context context, String title, String question,
                                                 String report, String[] urls) {
         if (context == null || report == null || report.trim().isEmpty()) return 0;
-        return ingestFindings(context, title, question, extractFindings(report, urls));
+        long batchStartedAt = System.currentTimeMillis();
+        List<Finding> findings = extractFindings(report, urls);
+        int usable = ingestFindings(context, title, question, findings);
+        // Do not synthesize from an empty/failed extraction. Weak conclusions are
+        // made only after traceable source observations have been stored.
+        if (usable > 0) derivePreliminaryConclusions(context, title, question, batchStartedAt);
+        return usable; // Counts source observations, not the extra conclusion records.
     }
 
     /**
@@ -116,7 +122,9 @@ public final class ResearchKnowledgeStore {
                 if (old == null) continue;
                 if (key.equals(normalize(old.optString("text")))
                         && url.equals(old.optString("sourceUrl"))
-                        && f.origin.equals(old.optString("origin", "FREE_WEB_EXTRACT"))) {
+                        && f.origin.equals(old.optString("origin", "FREE_WEB_EXTRACT"))
+                        && (!"AGENT_PRELIMINARY_CONCLUSION".equals(f.origin)
+                            || safeQuestion(question).equals(old.optString("researchQuestion")))) {
                     old.put("repeatCount", old.optInt("repeatCount", 1) + 1);
                     old.put("lastSeenAt", now);
                     JSONArray priorEvidence = old.optJSONArray("evidenceUrls");
@@ -164,6 +172,7 @@ public final class ResearchKnowledgeStore {
             observation.put("clusterId", clusterId);
             observation.put("relationToCluster", relation);
             observation.put("similarityToCluster", similarity);
+            observation.put("similarToObservationId", match == null ? "" : match.referenceId);
             observation.put("reportTitle", title == null ? "" : title);
             observation.put("researchQuestion", question == null ? "" : question);
             observation.put("sourceUrl", url);
@@ -218,11 +227,103 @@ public final class ResearchKnowledgeStore {
         }
     }
 
+    /**
+     * Rule-only inference pass: record one cautious summary for each cluster touched
+     * by this successful research batch. It compares traceable source observations
+     * only; earlier agent conclusions never count as evidence and cannot self-confirm.
+     */
+    private static void derivePreliminaryConclusions(Context context, String title,
+                                                     String question, long batchStartedAt) {
+        Context app = context.getApplicationContext();
+        SharedPreferences p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        JSONArray observations = readArray(p.getString(OBSERVATIONS, "[]"));
+        JSONArray clusters = readArray(p.getString(CLUSTERS, "[]"));
+
+        for (int i = 0; i < clusters.length(); i++) {
+            JSONObject cluster = clusters.optJSONObject(i);
+            if (cluster == null) continue;
+            JSONArray members = cluster.optJSONArray("members");
+            if (members == null || members.length() == 0) continue;
+
+            List<JSONObject> current = new ArrayList<>();
+            List<JSONObject> earlier = new ArrayList<>();
+            List<String> evidenceUrls = new ArrayList<>();
+            boolean possibleContradiction = false;
+            for (int j = 0; j < members.length(); j++) {
+                JSONObject item = findObservation(observations, members.optString(j));
+                if (item == null || !"FREE_WEB_EXTRACT".equals(item.optString("origin"))) continue;
+                long lastSeen = item.optLong("lastSeenAt", item.optLong("observedAt", 0L));
+                if (lastSeen >= batchStartedAt) {
+                    current.add(item);
+                    if (item.optString("relationToCluster").contains("POSSIBLE_CONTRADICTION")) {
+                        possibleContradiction = true;
+                    }
+                } else {
+                    earlier.add(item);
+                }
+            }
+            if (current.isEmpty()) continue;
+
+            for (JSONObject item : current) addEvidenceUrl(evidenceUrls, item.optString("sourceUrl"));
+            if (!earlier.isEmpty()) {
+                for (JSONObject item : earlier) addEvidenceUrl(evidenceUrls, item.optString("sourceUrl"));
+            }
+            if (evidenceUrls.size() > 8) evidenceUrls = new ArrayList<>(evidenceUrls.subList(0, 8));
+
+            String label = shorten(cluster.optString("label", "неустановленная тема"), 70);
+            String conclusion;
+            double confidence;
+            if (possibleContradiction) {
+                conclusion = "Предварительно: по теме «" + label
+                        + "» обнаружено возможное противоречие или различие условий. "
+                        + "Нужно сверить первоисточники, даты и определения; противоречие пока не разрешено.";
+                confidence = 0.20;
+            } else if (!earlier.isEmpty()) {
+                conclusion = "Предварительно: по теме «" + label
+                        + "» новое веб-наблюдение тематически связано с более ранними записями. "
+                        + "Это сходство формулировок/темы, а не подтверждение общего тезиса или независимости источников.";
+                confidence = 0.25;
+            } else if (current.size() > 1) {
+                conclusion = "Предварительно: в исследовании по теме «" + label
+                        + "» найдено несколько тематически близких фрагментов, но связь с более ранней памятью "
+                        + "пока не установлена. Они могут опираться на общие данные.";
+                confidence = 0.20;
+            } else {
+                conclusion = "Предварительно: по теме «" + label
+                        + "» найдено отдельное наблюдение. Данных пока недостаточно для более сильного вывода; "
+                        + "сохраняем его как подсказку для последующей проверки.";
+                confidence = 0.15;
+            }
+
+            StringBuilder basis = new StringBuilder("rule=token-overlap+numeric/negation-check; cluster=")
+                    .append(cluster.optString("id"))
+                    .append("; currentObservationIds=");
+            appendIds(basis, current);
+            basis.append("; earlierObservationIds=");
+            appendIds(basis, earlier);
+            basis.append("; no truth verification or source-independence test");
+            addPreliminaryConclusion(context, conclusion, title, question, basis.toString(),
+                    evidenceUrls.toArray(new String[0]), confidence);
+        }
+    }
+
+    private static void appendIds(StringBuilder out, List<JSONObject> items) {
+        for (int i = 0; i < items.size() && i < 8; i++) {
+            if (i > 0) out.append(",");
+            out.append(items.get(i).optString("id"));
+        }
+    }
+
+    private static void addEvidenceUrl(List<String> urls, String raw) {
+        String url = safeUrl(raw);
+        if (!url.isEmpty() && !urls.contains(url)) urls.add(url);
+    }
+
     private static final class ClusterMatch {
-        String clusterId, referenceText;
+        String clusterId, referenceText, referenceId;
         double score;
-        ClusterMatch(String id, String text, double score) {
-            clusterId = id; referenceText = text; this.score = score;
+        ClusterMatch(String id, String text, String referenceId, double score) {
+            clusterId = id; referenceText = text; this.referenceId = referenceId; this.score = score;
         }
     }
 
@@ -238,10 +339,13 @@ public final class ResearchKnowledgeStore {
                 for (int k = observations.length() - 1; k >= 0; k--) {
                     JSONObject old = observations.optJSONObject(k);
                     if (old == null || !id.equals(old.optString("id"))) continue;
+                    // Agent-authored conclusions are not independent evidence and must
+                    // not become the sole anchor for future source-observation clustering.
+                    if ("AGENT_PRELIMINARY_CONCLUSION".equals(old.optString("origin"))) break;
                     String previousText = old.optString("text");
                     double score = similarity(text, previousText);
                     if (score >= 0.27 && (best == null || score > best.score)) {
-                        best = new ClusterMatch(cluster.optString("id"), previousText, score);
+                        best = new ClusterMatch(cluster.optString("id"), previousText, id, score);
                     }
                     break;
                 }
@@ -468,8 +572,10 @@ public final class ResearchKnowledgeStore {
                     } else {
                         out.append(" · извлечённое наблюдение");
                     }
-                    out.append("\n    Связь: ").append(item.optString("relationToCluster"))
-                       .append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
+                    out.append("\n    Связь: ").append(item.optString("relationToCluster"));
+                    String similarTo = item.optString("similarToObservationId", "");
+                    if (!similarTo.isEmpty()) out.append(" / SIMILAR_TO ").append(similarTo);
+                    out.append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
                     String basis = item.optString("basis", "");
                     if (!basis.isEmpty()) out.append("\n    Основание: ")
                             .append(basis.length() > 160 ? basis.substring(0, 157) + "…" : basis);
