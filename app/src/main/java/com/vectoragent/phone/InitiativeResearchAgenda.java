@@ -153,6 +153,10 @@ public final class InitiativeResearchAgenda {
             p.edit().putString(RESULTS,history.toString()).apply();
         } catch(Exception ignored) {}
 
+        // Every useful web report feeds the preliminary knowledge graph, even when its conclusions are weak.
+        // This store keeps observations separate and never promotes them to factual MemoryStore.
+        ResearchKnowledgeStore.ingestReport(context, title, question, report, urls);
+
         if(topicId==null || topicId.isEmpty() || report==null || report.trim().isEmpty()) return;
         try {
             JSONArray a=new JSONArray(p.getString(TOPICS,"[]"));
