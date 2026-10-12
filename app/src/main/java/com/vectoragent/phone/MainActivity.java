@@ -50,7 +50,8 @@ public class MainActivity extends Activity {
         for(Button b:new Button[]{setMode,teacherMode,learningMode,labMode})row2.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
         root.addView(row2);
         Button astraMode=btn("🛰 Astra Bridge"); astraMode.setTextSize(15); root.addView(astraMode);
-        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class)));
+        Button initiativeMode=btn("🧭 Самостоятельная инициатива"); initiativeMode.setTextSize(15); root.addView(initiativeMode);
+        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class))); initiativeMode.setOnClickListener(v->startActivity(new Intent(this,InitiativeActivity.class)));
         View line=new View(this);line.setBackgroundColor(Color.LTGRAY);root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
     }
     void showChat(){
