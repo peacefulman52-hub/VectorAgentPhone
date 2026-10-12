@@ -6,13 +6,13 @@ This file is the durable handoff for work that must survive conversation limits.
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Free web research with persistent preliminary finding clusters (v3.6.4)"
+- Active work: PR #16, "Free web research with persistent preliminary finding clusters (v3.6.5)"
 - PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
 - Working branch: `agent/initiative-loop-1`
-- App version: `3.6.4`, `versionCode 364` so it can upgrade `3.6.3`/earlier installs.
-- Code changes include compact search queries, provider fallback, a persistent source-attributed research store, and a UI panel showing topical clusters and confidence.
-- Latest successful source-code build is CI run #230 for commit `b1233264bf34b5142ab0e0c9252eb988b4792de0`: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263837114.
-- Artifact: `VectorAgentPhone-3.6.4-apk`, ID `11754150423`, SHA-256 `b3e54854c76d1223775ff76546067b3d5357c1162e5f2d09dc3c77f1ae3fe4d9`. Use the artifact from run #230, not an older artifact or Releases page.
+- App version: `3.6.5`, `versionCode 365` so it can upgrade an installed `3.6.4` build.
+- Code changes include compact search queries, provider fallback, a persistent source-attributed research store, a cautious extractive takeaway per successful report, basis links to source-observation IDs, and a UI panel showing topical clusters and confidence.
+- Latest previously successful APK is the older v3.6.4 CI run #230 for commit `b1233264bf34b5142ab0e0c9252eb988b4792de0`: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263837114. It does NOT include the v3.6.5 conclusion-generation and test changes.
+- Current v3.6.5 HEAD has new offline Robolectric tests and GitHub Actions now runs `testDebugUnitTest` before building the APK. Run #240 is queued at checkpoint time: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38264759190. Wait for its actual test/build result before treating the artifact as ready.
 - Physical-device verification is still outstanding.
 - **The new build has not been verified on the physical phone. Do not call web research fixed until a real-device test succeeds.**
 
@@ -38,13 +38,13 @@ Important mismatch to remember:
 
 ## Next actions
 
-1. The latest source-code build is run #230 and passed; its artifact is `VectorAgentPhone-3.6.4-apk`.
-2. Open https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263837114 and download that run’s artifact, not an older artifact or Releases page.
-3. Install over the previous version and repeat the same Initiative question on the phone.
-4. Confirm both behaviours: (a) a usable report appears and the task advances; (b) preliminary observations appear in the cluster panel with URL/source attribution, and a similar-but-not-identical later statement joins the cluster as a separate member.
-5. If no observations are extracted, confirm the task remains incomplete. Record the exact diagnostics. If all providers show network errors, investigate phone network/VPN/filtering; if providers return HTTP 200 with zero parsed results, inspect parser markup.
-6. Next reasoning milestone: wire `ResearchKnowledgeStore.addPreliminaryConclusion(...)` into a real local rule/hypothesis stage; do not claim autonomous synthesis until a caller uses this method.
-7. Only after physical-device verification decide whether PR #16 is ready to merge and publish a release.
+1. Check run #240 for commit containing v3.6.5 changes: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38264759190. Confirm `Run offline research regression tests` and `Build APK` both succeed before using the artifact.
+2. Download `VectorAgentPhone-3.6.5-apk` from that successful run, not the earlier v3.6.4 artifact.
+3. Install over the prior app and repeat the same Initiative question on a physical Android phone.
+4. Confirm: a usable report appears; source URLs match each extracted excerpt; clusters contain distinct related records; each successful research task adds at most one derived takeaway linked to a raw observation ID; restarting the app preserves cluster IDs and basis links.
+5. Test an empty/unattributed result: observation count must be zero and the topic must remain incomplete. Record the exact provider diagnostics. If providers fail with network errors, investigate phone network/VPN/filtering; if HTML returns with zero parsed results, inspect parser markup.
+6. Review CI unit-test results for footer exclusion, URL provenance, exact duplicate idempotency, related-but-distinct clustering, numeric/negation warning, no self-support from derived conclusions, and zero usable findings.
+7. Only after real-device verification decide whether PR #16 is ready to merge and publish a release.
 
 ## Long-term project goals (do not lose)
 
@@ -57,6 +57,6 @@ Important mismatch to remember:
 - Failed/empty research must never be marked completed, promoted to fact, or used to resolve a conflict automatically.
 - Keep weak research observations: `PRELIMINARY` is the intended state, not a failure. Prefer a low confidence plus provenance over discarding a plausible clue.
 - Clusters organize topic similarity, not truth. Similar claims remain separate records, and potential numeric/negation contradictions remain reviewable.
-- The current source-only research cycle does not yet generate novel prose conclusions. The new agent-authored conclusion API is a foundation for the next local reasoning milestone.
+- The current takeaway is deliberately extractive and meta-level, not free-form reasoning. A richer local rule/hypothesis stage is still a later milestone; keep its derived outputs separate from independent web evidence.
 - Avoid duplicate ingestion: all manual and background callers must use `InitiativeResearchAgenda.saveResult` as the sole gateway to `ResearchKnowledgeStore`.
 - Prefer checkpoints and reproducible tests over relying on conversation history alone.
