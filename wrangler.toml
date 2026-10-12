@@ -1,0 +1,16 @@
+name = "astra-link-relay"
+main = "relay/cloudflare-worker.js"
+compatibility_date = "2026-10-08"
+
+[vars]
+# Set ASTRA_TOKEN as a Worker secret in Cloudflare.
+# Never place the token in this file or commit it to Git.
+
+[durable_objects]
+bindings = [
+  { name = "ASTRA_QUEUE", class_name = "AstraQueue" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AstraQueue"]
