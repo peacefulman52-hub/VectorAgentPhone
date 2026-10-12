@@ -70,7 +70,7 @@ public class ResearchKnowledgeStoreTest {
     }
 
     @Test
-    public void refusesToGuessAttributionWhenReportContainsSeveralUrlsButNoBlockUrl() {
+    public void refusesToGuessAttributionWhenReportContainsSeveralUrlsButNoBlockUrl() throws Exception {
         String report = "1. Page without source URL\n"
                 + "Фрагменты страницы:\n"
                 + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\n";
