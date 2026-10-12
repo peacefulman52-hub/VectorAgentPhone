@@ -271,6 +271,35 @@ public class ResearchKnowledgeStoreTest {
         assertEquals(2, evidenceUrls.length());
     }
 
+    @Test
+    public void derivedTakeawayNeverBecomesTheBasisForAnotherTakeaway() throws Exception {
+        String url = "https://first.example/water";
+        String report = oneSourceReport(url,
+                "Water boils at 100 degrees Celsius at sea-level atmospheric pressure.");
+        InitiativeResearchAgenda.saveResult(context, "", "Boiling point", "First question", report,
+                new String[]{url});
+        InitiativeResearchAgenda.saveResult(context, "", "Water phase change", "Second question", report,
+                new String[]{url});
+
+        JSONArray rows = observations();
+        assertEquals(3, rows.length());
+        String rawId = rows.getJSONObject(0).getString("id");
+        JSONObject firstTakeaway = null;
+        JSONObject secondTakeaway = null;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.getJSONObject(i);
+            if (!"AGENT_PRELIMINARY_CONCLUSION".equals(row.optString("origin"))) continue;
+            if (firstTakeaway == null) firstTakeaway = row;
+            else secondTakeaway = row;
+        }
+        assertNotNull(firstTakeaway);
+        assertNotNull(secondTakeaway);
+        assertEquals(rawId, firstTakeaway.getString("basisObservationId"));
+        assertEquals(rawId, secondTakeaway.getString("basisObservationId"));
+        assertNotEquals(firstTakeaway.getString("id"), secondTakeaway.getString("basisObservationId"));
+        assertEquals("DERIVED_FROM_OBSERVATION", secondTakeaway.getString("relationToCluster"));
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
