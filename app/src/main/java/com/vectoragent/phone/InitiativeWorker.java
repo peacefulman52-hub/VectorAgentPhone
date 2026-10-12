@@ -58,11 +58,21 @@ public final class InitiativeWorker extends Worker {
                         && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(context, question)) {
                     FreeWebResearch.Result result = FreeWebResearch.research(question);
                     if (result.report != null && !result.report.trim().isEmpty()) {
-                        InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
+                        int observationCount = InitiativeResearchAgenda.saveResult(
+                                context, topicId, title, question, result.report, result.urls);
+                        if (observationCount <= 0) {
+                            postMessage(context, "Astra: недостаточно извлечённых данных",
+                                    title + "\nОтчёт сохранён, но содержательных наблюдений не извлечено. "
+                                    + "Задача не отмечена завершённой; будет доступна для повторного исследования.");
+                            InitiativeEngine.scan(context);
+                            return Result.success();
+                        }
                         String summary = result.report.length() > 650
                                 ? result.report.substring(0, 650) + "…" : result.report;
-                        postMessage(context, "Astra завершила исследование", title + "\n\n" + summary
-                                + "\n\nПолный отчёт и источники сохранены в Astra Initiative.");
+                        postMessage(context, "Astra завершила исследование",
+                                title + "\nПредварительных наблюдений сохранено: " + observationCount
+                                + ". Они добавлены в тематические кластеры, не стали подтверждёнными фактами.\n\n"
+                                + summary + "\n\nПолный отчёт и источники сохранены в Astra Initiative.");
                         InitiativeEngine.scan(context);
                         return Result.success();
                     }
