@@ -97,18 +97,30 @@ public class MainActivity extends Activity {
     }
 
     void runWebTeacher(){
-        String key=getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key","");
-        if(key.trim().isEmpty()){ toast("Сначала добавь OpenAI API key в ⚙ Настройки."); return; }
         String id=store.firstLearningTarget();
-        if(id.isEmpty()){ addBubble("ИИ-учитель","Нет CANDIDATE/CONFLICT для исследования. Дай агенту новое проверяемое утверждение."); return; }
+        if(id.isEmpty()){
+            addBubble("Веб-исследователь","Нет CANDIDATE/CONFLICT для исследования. Дай агенту новое проверяемое утверждение.");
+            return;
+        }
         String target=store.researchTarget(id);
-        addBubble("ИИ-учитель","Исследую в интернете:\n"+target+"\n\nИщу несколько независимых источников...");
+        addBubble("Веб-исследователь","Бесплатно исследую в открытом интернете:\\n"+target+"\\n\\nИщу доступные страницы и извлекаю релевантные фрагменты без платного API...");
         new Thread(()->{
             try{
-                OpenAIWebTeacher.Result rr=OpenAIWebTeacher.research(key,target,store);
-                String saved=store.recordWebEvidence(id,rr.report,rr.urls);
-                runOnUiThread(()->addBubble("ИИ-учитель","Результат исследования:\n"+rr.report+"\n\n🌐 Источников: "+rr.urls.length+"\n🧠 "+saved));
-            }catch(Exception e){ runOnUiThread(()->addBubble("ИИ-учитель","⚠️ Веб-исследование не выполнено: "+e.getMessage())); }
+                FreeWebResearch.Result rr=FreeWebResearch.research(target);
+                StringBuilder saved=new StringBuilder(rr.report);
+                if(rr.urls!=null && rr.urls.length>0){
+                    saved.append("\\n\\nИсточники:");
+                    for(String u:rr.urls) saved.append("\\n• ").append(u);
+                }
+                rememberContext("Бесплатное исследование: "+target,saved.toString());
+                store.appendLearningLog("FREE_WEB_RESEARCH: "+target+" | sources="+(rr.urls==null?0:rr.urls.length)+" | saved outside factual MemoryStore");
+                runOnUiThread(()->addBubble("Веб-исследователь","Результат бесплатного веб-исследования:\\n"+saved
+                        +"\\n\\nОтчёт сохранён в истории контекста, не добавлен как факт в MemoryStore."));
+            }catch(Exception e){
+                String message=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();
+                if(message.length()>240) message=message.substring(0,240)+"…";
+                runOnUiThread(()->addBubble("Веб-исследователь","Бесплатный поиск не выполнен: "+message));
+            }
         }).start();
     }
 
