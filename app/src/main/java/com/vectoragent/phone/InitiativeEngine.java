@@ -125,6 +125,27 @@ public final class InitiativeEngine {
             }
         });
 
+        // A clean install still gets a concrete, bounded research goal instead of an empty queue.
+        // Memory conflicts/candidates/hypotheses keep priority over the starter research programme.
+        InitiativeResearchAgenda.Topic topic = InitiativeResearchAgenda.next(app);
+        if (topic != null) {
+            Task t = new Task();
+            t.type = "RESEARCH"; t.id = topic.id; t.priority = 40; t.created = topic.order;
+            t.title = "Исследовать: " + topic.title;
+            t.reason = topic.goal;
+            t.nextStep = topic.question;
+            t.fingerprint = "RESEARCH|" + topic.id + "|" + topic.updatedAt + "|pending";
+            tasks.add(t);
+        }
+
+        Collections.sort(tasks, new Comparator<Task>() {
+            @Override public int compare(Task a, Task b) {
+                int p = Integer.compare(b.priority, a.priority);
+                if (p != 0) return p;
+                return Long.compare(a.created, b.created);
+            }
+        });
+
         Task best = tasks.isEmpty() ? null : tasks.get(0);
         long now = System.currentTimeMillis();
         Report report;
@@ -133,9 +154,9 @@ public final class InitiativeEngine {
                     best.reason, best.nextStep, active, candidate, conflict, rejected, hypothesisCount, now);
         } else {
             report = new Report(false, "NONE", "", "NONE|" + active + "|" + candidate + "|" + conflict + "|" + rejected,
-                    "Очередь пока чиста",
-                    "Сейчас нет записей со статусом CANDIDATE или CONFLICT и нет непроверенных гипотез.",
-                    "Добавить независимое наблюдение или набор данных для проверки. Не создавать искусственную задачу только ради активности.",
+                    "Стартовая программа исследований завершена",
+                    "Все подготовленные вопросы исследованы, и сейчас нет незакрытых конфликтов, кандидатов или гипотез.",
+                    "Добавь новый исследовательский вопрос. Не создавай искусственную задачу только ради активности.",
                     active, candidate, conflict, rejected, hypothesisCount, now);
         }
 
