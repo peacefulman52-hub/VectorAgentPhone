@@ -387,7 +387,7 @@ public final class ResearchKnowledgeStore {
         String[] lines = report.split("\\r?\\n");
         int sourceBlockCount = 0;
         for (String raw : lines) {
-            if (raw.trim().matches("^\\\\d+\\\\.\\\\s+.*")) sourceBlockCount++;
+            if (raw.trim().matches("^\\d+\\.\\s+.*")) sourceBlockCount++;
         }
         // A fallback URL is unambiguous only if both the URL list and report identify
         // exactly one source block. Never smear one URL across multiple unlabelled blocks.
