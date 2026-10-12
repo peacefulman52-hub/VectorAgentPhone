@@ -43,8 +43,8 @@ public final class InitiativeActivity extends Activity {
         scroll.addView(root); setContentView(scroll);
 
         root.addView(tv("🧭 ASTRA INITIATIVE", 24));
-        root.addView(tv("Агент уже получил стартовую программу из 7 реальных исследовательских вопросов. Он ищет веб-источники через OpenAI Responses API, сохраняет отчёты и ссылки, а затем переходит к следующей теме. Исследователь отправляет API только выбранный вопрос, не всю локальную память. Он не изменяет факты автоматически.", 14));
-        root.addView(tv("Важно: исследование через API расходует твою API-квоту. Добавь ключ в VECTOR → Настройки. Ручной запуск выполняет одно исследование; ежедневный режим запускает до одного исследования за цикл расписания. Не добавляй в вопросы пароли, токены или другие секреты.", 13));
+        root.addView(tv("Агент получил стартовую программу из 7 исследовательских вопросов. Он бесплатно ищет публичные веб-страницы без API-ключа, извлекает подходящие фрагменты локально, сохраняет отчёты и ссылки, а затем переходит к следующей теме. Локальная память не отправляется в облако, факты автоматически не меняются.", 14));
+        root.addView(tv("Бесплатный режим не требует OpenAI API key и не расходует API-квоту. Поиск выполняется через общедоступную поисковую выдачу и открытые страницы; сайты могут ограничивать автоматические запросы. Синтез локальный и extractive: агент собирает релевантные фрагменты, но не притворяется, что сделал полноценный вывод большой языковой моделью.", 13));
 
         status = tv("", 13); root.addView(status);
         root.addView(tv("Следующая задача", 18));
@@ -84,7 +84,7 @@ public final class InitiativeActivity extends Activity {
         researchView.setMovementMethod(LinkMovementMethod.getInstance());
         root.addView(researchView);
 
-        Button enable = btn("▶ Включить ежедневное веб-исследование (расходует API)");
+        Button enable = btn("▶ Включить ежедневное бесплатное исследование");
         Button disable = btn("⏸ Выключить ежедневное исследование");
         root.addView(enable); root.addView(disable);
         enable.setOnClickListener(v -> enableSchedule());
@@ -94,8 +94,8 @@ public final class InitiativeActivity extends Activity {
         });
 
         renderStatus(InitiativeScheduler.isEnabled(this)
-                ? "Ежедневный режим включён. Проверь, что API-ключ сохранён."
-                : "Ежедневный режим выключен.");
+                ? "Ежедневное бесплатное исследование включено."
+                : "Ежедневное бесплатное исследование выключено.");
         refreshInitiative();
         refreshAgenda();
     }
@@ -103,22 +103,17 @@ public final class InitiativeActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (status != null) renderStatus(InitiativeScheduler.isEnabled(this)
-                ? "Ежедневный режим включён. Android может сдвигать время выполнения."
-                : "Ежедневный режим выключен.");
+                ? "Ежедневное бесплатное исследование включено. Android может сдвигать время выполнения."
+                : "Ежедневное бесплатное исследование выключено.");
     }
 
     private void enableSchedule() {
-        String apiKey = getSharedPreferences("vector_settings", MODE_PRIVATE).getString("openai_key", "").trim();
-        if (apiKey.isEmpty()) {
-            renderStatus("Сначала добавь OpenAI API key в VECTOR → Настройки. Без ключа ежедневное исследование нечего будет выполнять.");
-            return;
-        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
         } else {
             InitiativeScheduler.enable(this);
-            renderStatus("Ежедневное веб-исследование включено. Один запуск в день может расходовать API-квоту.");
+            renderStatus("Ежедневное бесплатное исследование включено. Поисковые сайты могут ограничивать запросы.");
             Toast.makeText(this, "Ежедневное исследование включено", Toast.LENGTH_SHORT).show();
         }
     }
@@ -131,16 +126,11 @@ public final class InitiativeActivity extends Activity {
         boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         renderStatus(granted
                 ? "Ежедневное исследование включено; уведомления разрешены."
-                : "Ежедневное исследование включено, но уведомления запрещены. Фоновый запуск всё равно может расходовать API-квоту.");
+                : "Ежедневное исследование включено, но уведомления запрещены. Фоновая задача всё равно может выполняться.");
     }
 
     private void runResearch() {
         if (researchRunning) return;
-        String apiKey = getSharedPreferences("vector_settings", MODE_PRIVATE).getString("openai_key", "").trim();
-        if (apiKey.isEmpty()) {
-            renderStatus("Нет API-ключа. Открой VECTOR → Настройки → «Подключение ИИ-учителя», сохрани ключ и вернись сюда.");
-            return;
-        }
 
         InitiativeEngine.Report selected = InitiativeEngine.scan(this);
         if (!selected.actionable) {
@@ -181,13 +171,13 @@ public final class InitiativeActivity extends Activity {
         researchRunning = true;
         researchButton.setEnabled(false);
         scanButton.setEnabled(false);
-        renderStatus("Исследую: " + title + ". Ищу независимые источники; это может занять до минуты.");
+        renderStatus("Бесплатно исследую: " + title + ". Ищу открытые страницы и извлекаю релевантные фрагменты.");
         new Thread(() -> {
             try {
-                OpenAIWebTeacher.Result result = OpenAIWebTeacher.researchQuestion(apiKey, savedQuestion);
+                FreeWebResearch.Result result = FreeWebResearch.research(savedQuestion);
                 if (result.report == null || result.report.trim().isEmpty()) {
                     runOnUiThread(() -> {
-                        renderStatus("Поиск не вернул отчёта. Задача не отмечена выполненной; проверь API и повтори.");
+                        renderStatus("Поиск не вернул отчёта. Задача не отмечена выполненной; проверь соединение и повтори.");
                         setResearchText(InitiativeResearchAgenda.latestResultText(this));
                         researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                     });
@@ -199,7 +189,7 @@ public final class InitiativeActivity extends Activity {
                     refreshAgenda();
                     render(InitiativeEngine.scan(this));
                     renderStatus("Исследование сохранено. Найдено URL: " + (result.urls == null ? 0 : result.urls.length)
-                            + ". Память фактов не изменялась.");
+                            + ". API-оплата не нужна; память фактов не изменялась.");
                     researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                 });
             } catch (Exception e) {
@@ -207,7 +197,7 @@ public final class InitiativeActivity extends Activity {
                     String message = e.getMessage();
                     if (message == null || message.trim().isEmpty()) message = e.getClass().getSimpleName();
                     if (message.length() > 300) message = message.substring(0, 300) + "…";
-                    renderStatus("Веб-исследование не удалось: " + message + ". Проверь ключ, доступ к API и квоту.");
+                    renderStatus("Бесплатное веб-исследование не удалось: " + message + ". Поиск мог быть временно ограничен; попробуй позже.");
                     researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                 });
             }
@@ -243,7 +233,7 @@ public final class InitiativeActivity extends Activity {
         }
         reportView.setText(report.displayText());
         renderStatus(InitiativeScheduler.isEnabled(this)
-                ? "Ежедневное исследование включено."
-                : "Ежедневное исследование выключено.");
+                ? "Ежедневное бесплатное исследование включено."
+                : "Ежедневное бесплатное исследование выключено.");
     }
 }
