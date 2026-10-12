@@ -23,6 +23,18 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
+## v3.6.0 — Initiative Loop
+
+Adds an opt-in proactive review cycle:
+
+- ranks unresolved conflicts before unverified candidates and open hypotheses;
+- stores the latest initiative report between app launches;
+- runs a WorkManager scan roughly every 24 hours and may notify about changed or overdue work;
+- keeps initiative proposals separate from factual memory: background work never resolves conflicts, promotes facts, or clicks through external apps;
+- exposes scan-now, enable and disable controls in the Initiative screen.
+
+Periodic execution is best-effort and may be delayed by Android battery optimizations. Notifications require permission on Android 13 and later.
+
 ## v1.5.0
 
 Adds a separate persistent learning model alongside MemoryStore:
