@@ -300,6 +300,62 @@ public class ResearchKnowledgeStoreTest {
         assertEquals("DERIVED_FROM_OBSERVATION", secondTakeaway.getString("relationToCluster"));
     }
 
+    @Test
+    public void localHypothesisIsUpsertedByStableIdWithoutInventingEvidenceUrls() throws Exception {
+        String hypothesisId = "h-pressure-rule";
+        String rule = "Water boiling temperature depends on surrounding pressure conditions.";
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(context, hypothesisId,
+                rule, "Observed local pairs vary pressure and boiling point.", "CANDIDATE", 2, "1"));
+
+        JSONArray firstRows = observations();
+        assertEquals(1, firstRows.length());
+        JSONObject first = firstRows.getJSONObject(0);
+        String observationId = first.getString("id");
+        assertEquals("LOCAL_SYMBOLIC_HYPOTHESIS", first.getString("origin"));
+        assertEquals("local-hypothesis:" + hypothesisId, first.getString("basisHypothesisId"));
+        assertEquals("", first.getString("sourceUrl"));
+        assertEquals(0, first.getJSONArray("evidenceUrls").length());
+        assertEquals(1, first.getInt("repeatCount"));
+
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(context, hypothesisId,
+                rule, "Additional local comparison; no web URL attached.", "REJECTED", 3, "2"));
+
+        JSONArray rows = observations();
+        assertEquals("A repeated scan must update the same hypothesis record.", 1, rows.length());
+        JSONObject updated = rows.getJSONObject(0);
+        assertEquals(observationId, updated.getString("id"));
+        assertEquals("REJECTED", updated.getString("hypothesisStatus"));
+        assertEquals(3, updated.getInt("hypothesisSupport"));
+        assertEquals("2", updated.getString("hypothesisVersion"));
+        assertEquals(0.05, updated.getDouble("confidence"), 0.0001);
+        assertEquals("A scan is not new evidence.", 1, updated.getInt("repeatCount"));
+        assertTrue(updated.getString("basis").contains("no web URL attached"));
+    }
+
+    @Test
+    public void localHypothesisJoinsRelatedSourceClusterWithoutBecomingSourceEvidence() throws Exception {
+        String url = "https://first.example/water";
+        String report = oneSourceReport(url,
+                "Water boils at 100 degrees Celsius at sea-level atmospheric pressure.");
+        assertEquals(1, ResearchKnowledgeStore.ingestReport(context, "Boiling", "Water pressure", report,
+                new String[]{url}));
+        JSONObject raw = observations().getJSONObject(0);
+
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(context, "h-boiling-pressure",
+                "Water boils at 100 degrees Celsius under sea-level pressure conditions.",
+                "The local symbolic pattern compares pressure and boiling point.", "CANDIDATE", 2, "1"));
+
+        JSONArray rows = observations();
+        assertEquals(2, rows.length());
+        JSONObject hypothesis = rows.getJSONObject(1);
+        assertEquals(raw.getString("clusterId"), hypothesis.getString("clusterId"));
+        assertEquals("SIMILAR_TO_SOURCE_OBSERVATION", hypothesis.getString("relationToCluster"));
+        assertEquals(raw.getString("id"), hypothesis.getString("similarToObservationId"));
+        assertEquals("", hypothesis.getString("basisObservationId"));
+        assertEquals("", hypothesis.getString("sourceUrl"));
+        assertEquals(0, hypothesis.getJSONArray("evidenceUrls").length());
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
