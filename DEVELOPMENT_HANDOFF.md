@@ -6,13 +6,14 @@ This file is the durable handoff for work that must survive conversation limits.
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Harden free research and cluster preliminary findings (v3.6.4)"
+- Active work: PR #16, "Free web research with persistent preliminary finding clusters (v3.6.4)"
 - PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
 - Working branch: `agent/initiative-loop-1`
 - App version: `3.6.4`, `versionCode 364` so it can upgrade `3.6.3`/earlier installs.
 - Code changes include compact search queries, provider fallback, a persistent source-attributed research store, and a UI panel showing topical clusters and confidence.
-- Latest code commit in this checkpoint: `d9acec20d8a284d3cd12aca8b7b2adb0e84a928b`; app version 3.6.4 / versionCode 364.
-- CI run #228 for the cluster UI commit was queued at checkpoint creation: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263612292. Earlier run #226 succeeded but predates the new agent-conclusion API: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263179986.
+- Latest successful source-code build is CI run #230 for commit `b1233264bf34b5142ab0e0c9252eb988b4792de0`: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263837114.
+- Artifact: `VectorAgentPhone-3.6.4-apk`, ID `11754150423`, SHA-256 `b3e54854c76d1223775ff76546067b3d5357c1162e5f2d09dc3c77f1ae3fe4d9`. Use the artifact from run #230, not an older artifact or Releases page.
+- Physical-device verification is still outstanding.
 - **The new build has not been verified on the physical phone. Do not call web research fixed until a real-device test succeeds.**
 
 ## Latest bug and code changes
@@ -37,8 +38,8 @@ Important mismatch to remember:
 
 ## Next actions
 
-1. Check the newest GitHub Actions run including commit `d9acec20...`; confirm build and artifact upload both succeed.
-2. Download `VectorAgentPhone-3.6.4-apk` from the newest successful Actions run on the PR branch, not from an older artifact or Releases page.
+1. The latest source-code build is run #230 and passed; its artifact is `VectorAgentPhone-3.6.4-apk`.
+2. Open https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38263837114 and download that run’s artifact, not an older artifact or Releases page.
 3. Install over the previous version and repeat the same Initiative question on the phone.
 4. Confirm both behaviours: (a) a usable report appears and the task advances; (b) preliminary observations appear in the cluster panel with URL/source attribution, and a similar-but-not-identical later statement joins the cluster as a separate member.
 5. If no observations are extracted, confirm the task remains incomplete. Record the exact diagnostics. If all providers show network errors, investigate phone network/VPN/filtering; if providers return HTTP 200 with zero parsed results, inspect parser markup.
