@@ -57,6 +57,7 @@ public final class ResearchKnowledgeStore {
 
         int added = 0;
         long now = System.currentTimeMillis();
+        try {
         for (Finding f : findings) {
             String text = shorten(f.text, MAX_TEXT);
             if (text.length() < 35) continue;
@@ -150,6 +151,10 @@ public final class ResearchKnowledgeStore {
         p.edit().putString(OBSERVATIONS, observations.toString())
                 .putString(CLUSTERS, clusters.toString()).apply();
         return added;
+        } catch (Exception ignored) {
+            // Preserve any earlier valid state; malformed evidence must not crash the research loop.
+            return 0;
+        }
     }
 
     private static final class ClusterMatch {
