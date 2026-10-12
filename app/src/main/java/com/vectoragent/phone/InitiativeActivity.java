@@ -191,6 +191,8 @@ public final class InitiativeActivity extends Activity {
                     return;
                 }
                 InitiativeResearchAgenda.saveResult(this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
+                // Save cautious source excerpts into persistent topical clusters, not factual MemoryStore.
+                ResearchKnowledgeStore.ingestReport(this, savedTitle, savedQuestion, result.report, result.urls);
                 runOnUiThread(() -> {
                     setResearchText(InitiativeResearchAgenda.latestResultText(this));
                     refreshAgenda();
