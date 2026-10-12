@@ -330,7 +330,10 @@ public final class ResearchKnowledgeStore {
         String[] lines = report.split("\\r?\\n");
         for (String raw : lines) {
             String line = raw.trim();
-            if (line.matches("^\\d+\\.\\s+.*")) capture = false;
+            if (line.matches("^\\d+\\.\\s+.*")) {
+                capture = false;
+                currentUrl = ""; // Never reuse the previous page's URL for the next source block.
+            }
             if (line.startsWith("URL:")) {
                 currentUrl = safeUrl(line.substring(4).trim());
                 continue;
