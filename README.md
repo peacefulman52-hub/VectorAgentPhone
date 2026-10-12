@@ -23,15 +23,15 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
-## v3.6.0 — Initiative Loop
+## v3.6.0 — Free Initiative Research
 
-- An opt-in Android WorkManager cycle stores and notifies about the next useful action.
-- A persistent starter programme includes seven real research topics: chat/session continuity, the agent loop, Android background limits, evidence quality, agent evaluations, measurable human-positive behavior, and phone-automation safety.
-- The Initiative screen lists goals, accepts custom questions, performs a web study on demand, and saves reports plus source URLs.
-- Daily web research is explicitly opt-in, requires the user-saved OpenAI API key, and may consume API quota. At most one research task is run per scheduled cycle.
-- Initiative research uses the Responses API `web_search` tool with model `gpt-5.5`. It sends only the selected question—not the full local fact memory.
-- Reports are stored separately from factual MemoryStore. A report never automatically promotes a fact or resolves a conflict.
-- Successfully researched identical items are skipped to prevent repeated API calls; the queue advances to the next open item.
+- An opt-in Android WorkManager cycle stores and notifies about the next useful task.
+- A persistent starter programme includes seven topics: chat/session continuity, agent loops, Android background limits, evidence quality, agent evaluation, measurable human-positive behavior, and phone-automation safety.
+- The Initiative screen lists goals and progress, accepts custom questions, runs a research task on demand, and saves reports plus source URLs.
+- Research uses keyless public web search and the public Wikipedia/MediaWiki search API as fallback. **No OpenAI API key, paid API plan, or API credit is required.** Normal internet traffic still applies; public sites may rate-limit or change their markup.
+- The phone downloads a limited number of pages and builds an extractive report locally from relevant snippets/sentences. It is not an LLM-generated synthesis and cannot reliably establish source independence or truth; sources must be checked manually.
+- Initiative research sends no local MemoryStore contents to an AI service. Reports are stored separately and never auto-promote facts or resolve conflicts.
+- Successfully researched identical questions are skipped to avoid repeated requests. Daily mode is opt-in and runs at most one task per scheduled WorkManager cycle.
 - WorkManager is best-effort and Android may delay periodic execution. Notifications require permission on Android 13+.
 
 ## v1.5.0
