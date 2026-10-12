@@ -190,15 +190,23 @@ public final class InitiativeActivity extends Activity {
                     });
                     return;
                 }
-                InitiativeResearchAgenda.saveResult(this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
-                // Save cautious source excerpts into persistent topical clusters, not factual MemoryStore.
-                ResearchKnowledgeStore.ingestReport(this, savedTitle, savedQuestion, result.report, result.urls);
+                int observationCount = InitiativeResearchAgenda.saveResult(
+                        this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
+                final int savedObservationCount = observationCount;
                 runOnUiThread(() -> {
                     setResearchText(InitiativeResearchAgenda.latestResultText(this));
                     refreshAgenda();
                     render(InitiativeEngine.scan(this));
-                    renderStatus("Исследование сохранено. Найдено URL: " + (result.urls == null ? 0 : result.urls.length)
-                            + ". API-оплата не нужна; память фактов не изменялась.");
+                    if (savedObservationCount > 0) {
+                        renderStatus("Исследование сохранено. Предварительных наблюдений: "
+                                + savedObservationCount + "; тематические кластеры обновлены. Найдено URL: "
+                                + (result.urls == null ? 0 : result.urls.length)
+                                + ". Выводы остаются предварительными; фактическая память не изменялась.");
+                    } else {
+                        renderStatus("Отчёт сохранён, но содержательных наблюдений извлечь не удалось. "
+                                + "Задача остаётся незавершённой; фактическая память не изменялась.");
+                    }
+                    refreshKnowledge();
                     researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                 });
             } catch (Exception e) {
