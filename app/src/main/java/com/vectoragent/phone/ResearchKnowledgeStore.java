@@ -39,7 +39,8 @@ public final class ResearchKnowledgeStore {
 
     /**
      * Stores useful excerpts from a report and attaches each excerpt to its closest
-     * existing topical cluster. Returns the number of new observations added.
+     * topical cluster. Returns the number of usable findings extracted; repeated
+     * excerpts from the same source still count as evidence, while empty reports return zero.
      */
     public static synchronized int ingestReport(Context context, String title, String question,
                                                 String report, String[] urls) {
@@ -49,18 +50,17 @@ public final class ResearchKnowledgeStore {
         JSONArray observations = readArray(p.getString(OBSERVATIONS, "[]"));
         JSONArray clusters = readArray(p.getString(CLUSTERS, "[]"));
         List<Finding> findings = extractFindings(report, urls);
-        if (findings.isEmpty()) {
-            String fallback = report.trim();
-            if (fallback.length() > MAX_TEXT) fallback = fallback.substring(0, MAX_TEXT) + "…";
-            findings.add(new Finding(fallback, urls != null && urls.length > 0 ? urls[0] : ""));
-        }
+        // Never turn a report header or a bare link into a fake finding.
+        if (findings.isEmpty()) return 0;
 
         int added = 0;
+        int usableFindings = 0;
         long now = System.currentTimeMillis();
         try {
         for (Finding f : findings) {
             String text = shorten(f.text, MAX_TEXT);
             if (text.length() < 35) continue;
+            usableFindings++;
             String url = safeUrl(f.url);
             String key = normalize(text);
             boolean duplicate = false;
@@ -150,7 +150,7 @@ public final class ResearchKnowledgeStore {
         while (clusters.length() > MAX_CLUSTERS) clusters.remove(0);
         p.edit().putString(OBSERVATIONS, observations.toString())
                 .putString(CLUSTERS, clusters.toString()).apply();
-        return added;
+        return usableFindings;
         } catch (Exception ignored) {
             // Preserve any earlier valid state; malformed evidence must not crash the research loop.
             return 0;
@@ -288,22 +288,6 @@ public final class ResearchKnowledgeStore {
             if (line.startsWith("•")) line = line.substring(1).trim();
             if (line.length() >= 35 && !line.startsWith("Домен:"))
                 out.add(new Finding(line, currentUrl));
-        }
-        if (out.isEmpty()) {
-            // Even a weak or oddly formatted report is retained as a preliminary note.
-            String fallback = "";
-            for (String raw : lines) {
-                String line = raw.trim();
-                if (line.length() >= 70 && !line.startsWith("URL:")
-                        && !line.startsWith("Домен:") && !line.startsWith("Метод:")
-                        && !line.startsWith("Вопрос:") && !line.startsWith("Что пока")
-                        && !line.startsWith("Следующий шаг:")) {
-                    fallback = line;
-                    break;
-                }
-            }
-            if (!fallback.isEmpty())
-                out.add(new Finding(fallback, urls != null && urls.length > 0 ? urls[0] : ""));
         }
         return out;
     }
