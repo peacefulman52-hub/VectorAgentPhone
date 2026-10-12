@@ -287,13 +287,13 @@ public final class FreeWebResearch {
     private static String extractReadableText(String html) {
         String x = html.replaceAll("(?is)<(script|style|noscript|svg|nav|footer|header|aside)[^>]*>.*?</\\1>", " ");
         x = x.replaceAll("(?is)<!--.*?-->", " ");
-        x = x.replaceAll("(?i)</(p|li|h1|h2|h3|h4|blockquote|article|section|br|tr)>", "\\n");
+        x = x.replaceAll("(?i)</(p|li|h1|h2|h3|h4|blockquote|article|section|br|tr)>", " . ");
         x = stripTags(x);
         x = decodeEntities(x);
         StringBuilder cleanLines = new StringBuilder();
         for (String line : x.split("\\n+")) {
             String s = clean(line);
-            if (s.length() >= 50) cleanLines.append(s).append("\\n");
+            if (s.length() >= 50) cleanLines.append(s).append("\n");
         }
         String result = cleanLines.toString();
         return result.length() > 25_000 ? result.substring(0,25_000) : result;
