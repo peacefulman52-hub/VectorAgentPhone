@@ -153,7 +153,7 @@ public final class InitiativeResearchAgenda {
             p.edit().putString(RESULTS,history.toString()).apply();
         } catch(Exception ignored) {}
 
-        if(topicId==null || topicId.isEmpty()) return;
+        if(topicId==null || topicId.isEmpty() || report==null || report.trim().isEmpty()) return;
         try {
             JSONArray a=new JSONArray(p.getString(TOPICS,"[]"));
             for(int i=0;i<a.length();i++){
@@ -165,6 +165,20 @@ public final class InitiativeResearchAgenda {
                 break;
             }
         } catch(Exception ignored) {}
+    }
+
+    public static synchronized boolean hasSuccessfulResearchForQuestion(Context context, String question) {
+        if (question == null || question.trim().isEmpty()) return false;
+        ensureSeeded(context);
+        try {
+            JSONArray a=new JSONArray(prefs(context).getString(RESULTS,"[]"));
+            for(int i=a.length()-1;i>=0;i--) {
+                JSONObject o=a.optJSONObject(i);
+                if(o!=null && question.trim().equals(o.optString("question").trim())
+                        && !o.optString("report").trim().isEmpty()) return true;
+            }
+        } catch(Exception ignored) {}
+        return false;
     }
 
     public static synchronized String latestResultText(Context context) {
