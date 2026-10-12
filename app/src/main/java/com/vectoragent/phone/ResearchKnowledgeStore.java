@@ -97,6 +97,19 @@ public final class ResearchKnowledgeStore {
                 similarity = match.score;
                 relation = classifyRelation(text, match.referenceText);
             }
+            String basisObservationId = match == null ? "" : match.referenceId;
+            String preliminaryConclusion;
+            double conclusionConfidence;
+            if ("POSSIBLE_CONTRADICTION_OR_CONDITION".equals(relation)) {
+                preliminaryConclusion = "Возможно противоречие или различие условий с ранее сохранённым наблюдением. Нужно сверить контекст, дату и определения.";
+                conclusionConfidence = 0.20;
+            } else if (match != null) {
+                preliminaryConclusion = "Найдено тематическое сходство с ранее сохранённым наблюдением. Общий фактический тезис пока не подтверждён.";
+                conclusionConfidence = 0.25;
+            } else {
+                preliminaryConclusion = "Пока это отдельное наблюдение: близкой записи не найдено. Вывод остаётся предварительным.";
+                conclusionConfidence = 0.15;
+            }
 
             String id = "obs-" + Long.toHexString(now) + "-" + observations.length();
             JSONObject observation = new JSONObject();
@@ -105,6 +118,7 @@ public final class ResearchKnowledgeStore {
             observation.put("clusterId", clusterId);
             observation.put("relationToCluster", relation);
             observation.put("similarityToCluster", similarity);
+            observation.put("similarToObservationId", match == null ? "" : match.referenceId);
             observation.put("reportTitle", title == null ? "" : title);
             observation.put("researchQuestion", question == null ? "" : question);
             observation.put("sourceUrl", url);
@@ -112,6 +126,11 @@ public final class ResearchKnowledgeStore {
             observation.put("origin", "FREE_WEB_EXTRACT");
             observation.put("status", "PRELIMINARY");
             observation.put("confidence", 0.25);
+            observation.put("preliminaryConclusion", preliminaryConclusion);
+            observation.put("conclusionStatus", "CANDIDATE");
+            observation.put("conclusionConfidence", conclusionConfidence);
+            observation.put("conclusionBasis", "Offline similarity/negation/number heuristic; not a truth judgment.");
+            observation.put("basisObservationId", basisObservationId);
             observation.put("repeatCount", 1);
             observation.put("observedAt", now);
             observation.put("lastSeenAt", now);
@@ -157,11 +176,145 @@ public final class ResearchKnowledgeStore {
         }
     }
 
+    /**
+     * Public write path for a future local reasoning module. It creates a separate
+     * PRELIMINARY record, keeps the conclusion's stated basis and source URLs, and
+     * joins a similar cluster without replacing or auto-confirming another claim.
+     */
+    public static synchronized boolean recordConclusion(Context context, String title,
+                                                        String question, String conclusion,
+                                                        String basis, String[] evidenceUrls) {
+        if (context == null || conclusion == null || conclusion.trim().length() < 35) return false;
+        Context app = context.getApplicationContext();
+        SharedPreferences p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        JSONArray observations = readArray(p.getString(OBSERVATIONS, "[]"));
+        JSONArray clusters = readArray(p.getString(CLUSTERS, "[]"));
+        String text = shorten(conclusion.trim(), MAX_TEXT);
+        long now = System.currentTimeMillis();
+        JSONArray safeUrls = new JSONArray();
+        if (evidenceUrls != null) for (String raw : evidenceUrls) {
+            String u = safeUrl(raw);
+            if (!u.isEmpty() && !containsString(safeUrls, u)) safeUrls.put(u);
+        }
+
+        for (int i = observations.length() - 1; i >= 0; i--) {
+            JSONObject old = observations.optJSONObject(i);
+            if (old == null || !"LOCAL_INFERENCE".equals(old.optString("origin"))) continue;
+            if (!normalize(text).equals(normalize(old.optString("text")))
+                    || !safeQuestion(question).equals(old.optString("researchQuestion"))) continue;
+            try {
+                old.put("repeatCount", old.optInt("repeatCount", 1) + 1);
+                old.put("lastSeenAt", now);
+                old.put("conclusionBasis", basis == null ? "" : basis);
+                JSONArray prior = old.optJSONArray("basisUrls");
+                if (prior == null) prior = new JSONArray();
+                for (int j = 0; j < safeUrls.length(); j++)
+                    if (!containsString(prior, safeUrls.optString(j))) prior.put(safeUrls.optString(j));
+                old.put("basisUrls", prior);
+                p.edit().putString(OBSERVATIONS, observations.toString()).apply();
+                return true;
+            } catch (Exception ignored) { return false; }
+        }
+
+        try {
+            ClusterMatch match = findCluster(observations, clusters, text);
+            String clusterId;
+            String relation;
+            double similarity;
+            if (match == null) {
+                clusterId = "rk-" + Long.toHexString(now) + "-" + observations.length();
+                relation = "NEW_CLUSTER";
+                similarity = 0.0;
+                JSONObject cluster = new JSONObject();
+                cluster.put("id", clusterId);
+                cluster.put("label", shorten(firstSentence(text), 90));
+                cluster.put("members", new JSONArray());
+                cluster.put("createdAt", now);
+                cluster.put("updatedAt", now);
+                clusters.put(cluster);
+            } else {
+                clusterId = match.clusterId;
+                similarity = match.score;
+                relation = classifyRelation(text, match.referenceText);
+            }
+
+            String id = "conclusion-" + Long.toHexString(now) + "-" + observations.length();
+            JSONObject observation = new JSONObject();
+            observation.put("id", id);
+            observation.put("text", text);
+            observation.put("clusterId", clusterId);
+            observation.put("relationToCluster", relation);
+            observation.put("similarityToCluster", similarity);
+            observation.put("similarToObservationId", match == null ? "" : match.referenceId);
+            observation.put("reportTitle", title == null ? "" : title);
+            observation.put("researchQuestion", safeQuestion(question));
+            observation.put("sourceUrl", safeUrls.length() > 0 ? safeUrls.optString(0) : "");
+            observation.put("sourceDomain", safeUrls.length() > 0 ? domain(safeUrls.optString(0)) : "");
+            observation.put("sourceUrls", safeUrls);
+            observation.put("origin", "LOCAL_INFERENCE");
+            observation.put("status", "PRELIMINARY");
+            observation.put("confidence", 0.20);
+            observation.put("preliminaryConclusion", text);
+            observation.put("conclusionStatus", "CANDIDATE");
+            observation.put("conclusionConfidence", 0.20);
+            observation.put("conclusionBasis", basis == null ? "" : basis);
+            observation.put("basisObservationId", match == null ? "" : match.referenceId);
+            observation.put("repeatCount", 1);
+            observation.put("observedAt", now);
+            observation.put("lastSeenAt", now);
+            observations.put(observation);
+
+            JSONObject cluster = findClusterById(clusters, clusterId);
+            if (cluster != null) {
+                JSONArray members = cluster.optJSONArray("members");
+                if (members == null) members = new JSONArray();
+                members.put(id);
+                cluster.put("members", members);
+                cluster.put("updatedAt", now);
+            }
+            trimAndWrite(p, observations, clusters);
+            return true;
+        } catch (Exception ignored) { return false; }
+    }
+
+    private static String safeQuestion(String question) {
+        return question == null ? "" : question.trim();
+    }
+
+    private static boolean containsString(JSONArray array, String value) {
+        for (int i = 0; i < array.length(); i++) if (value.equals(array.optString(i))) return true;
+        return false;
+    }
+
+    private static void trimAndWrite(SharedPreferences p, JSONArray observations, JSONArray clusters) throws Exception {
+        while (observations.length() > MAX_OBSERVATIONS) observations.remove(0);
+        Set<String> alive = new HashSet<>();
+        for (int i = 0; i < observations.length(); i++) {
+            JSONObject o = observations.optJSONObject(i);
+            if (o != null) alive.add(o.optString("id"));
+        }
+        for (int i = clusters.length() - 1; i >= 0; i--) {
+            JSONObject c = clusters.optJSONObject(i);
+            if (c == null) { clusters.remove(i); continue; }
+            JSONArray oldMembers = c.optJSONArray("members");
+            JSONArray members = new JSONArray();
+            if (oldMembers != null) for (int j = 0; j < oldMembers.length(); j++) {
+                String member = oldMembers.optString(j);
+                if (alive.contains(member)) members.put(member);
+            }
+            c.put("members", members);
+            if (members.length() == 0) clusters.remove(i);
+        }
+        while (clusters.length() > MAX_CLUSTERS) clusters.remove(0);
+        p.edit().putString(OBSERVATIONS, observations.toString())
+                .putString(CLUSTERS, clusters.toString()).apply();
+    }
+
     private static final class ClusterMatch {
-        String clusterId, referenceText;
+        String clusterId, referenceText, referenceId;
         double score;
-        ClusterMatch(String id, String text, double score) {
-            clusterId = id; referenceText = text; this.score = score;
+        ClusterMatch(String id, String text, String referenceId, double score) {
+            clusterId = id; referenceText = text; this.referenceId = referenceId; this.score = score;
         }
     }
 
@@ -180,7 +333,7 @@ public final class ResearchKnowledgeStore {
                     String previousText = old.optString("text");
                     double score = similarity(text, previousText);
                     if (score >= 0.27 && (best == null || score > best.score)) {
-                        best = new ClusterMatch(cluster.optString("id"), previousText, score);
+                        best = new ClusterMatch(cluster.optString("id"), previousText, id, score);
                     }
                     break;
                 }
@@ -357,8 +510,13 @@ public final class ResearchKnowledgeStore {
                     JSONObject item = findObservation(observations, id);
                     if (item == null) continue;
                     out.append("\n  • ").append(item.optString("text"));
-                    out.append("\n    ").append(item.optString("relationToCluster"))
-                       .append(" · ").append(item.optString("sourceDomain", "источник не определён"));
+                    String relation = item.optString("relationToCluster");
+                    String similarTo = item.optString("similarToObservationId", "");
+                    out.append("\n    ").append(relation);
+                    if (!similarTo.isEmpty()) out.append(" / SIMILAR_TO ").append(similarTo);
+                    out.append(" · ").append(item.optString("sourceDomain", "источник не определён"));
+                    String conclusion = item.optString("preliminaryConclusion", "");
+                    if (!conclusion.isEmpty()) out.append("\n    Предварительный вывод: ").append(conclusion);
                     added++;
                 }
             }
