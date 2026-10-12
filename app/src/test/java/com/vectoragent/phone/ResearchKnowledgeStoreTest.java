@@ -227,6 +227,50 @@ public class ResearchKnowledgeStoreTest {
         assertEquals(2, takeaway.getInt("repeatCount"));
     }
 
+    @Test
+    public void takeawayUsesQuotedSnippetSourceEvenWhenCallerUrlArrayIsReversed() throws Exception {
+        String firstUrl = "https://first.example/water";
+        String secondUrl = "https://second.example/boiling";
+        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\\n"
+                + "Вопрос: точка кипения воды\\n"
+                + "Метод: extractive\\n\\n"
+                + "1. Первый источник\\n"
+                + "Домен: first.example\\n"
+                + "URL: " + firstUrl + "\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n\\n"
+                + "2. Второй источник\\n"
+                + "Домен: second.example\\n"
+                + "URL: " + secondUrl + "\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\\n\\n"
+                + "Что пока НЕ установлено автоматически:\\n"
+                + "• The sources have not been independently verified.\\n"
+                + "Следующий шаг: inspect the original sources.";
+
+        assertEquals(2, InitiativeResearchAgenda.saveResult(context, "", "Точка кипения",
+                "Сравни источники о точке кипения воды", report,
+                new String[]{secondUrl, firstUrl}));
+
+        JSONArray rows = observations();
+        JSONObject raw = rows.getJSONObject(0);
+        JSONObject takeaway = null;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.getJSONObject(i);
+            if ("AGENT_PRELIMINARY_CONCLUSION".equals(row.optString("origin"))) {
+                takeaway = row;
+                break;
+            }
+        }
+        assertNotNull(takeaway);
+        assertEquals("The quote comes from the first report block, not urls[] order.",
+                firstUrl, takeaway.getString("sourceUrl"));
+        assertEquals(raw.getString("id"), takeaway.getString("basisObservationId"));
+        JSONArray evidenceUrls = takeaway.getJSONArray("evidenceUrls");
+        assertEquals(firstUrl, evidenceUrls.getString(0));
+        assertEquals(2, evidenceUrls.length());
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
