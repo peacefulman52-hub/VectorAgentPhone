@@ -28,7 +28,7 @@ Changes committed to PR #16:
 6. `ResearchKnowledgeStore` is the only ingestion path. `InitiativeResearchAgenda.saveResult` invokes it exactly once; Activity and Worker must not call `ingestReport` again directly.
 7. A report with no usable extracted finding can be saved as a diagnostic, but has observation count zero and cannot mark the topic complete or suppress future research.
 8. The Initiative UI has a visible panel for accumulated preliminary clusters, showing status, confidence, relation type, and source domain.
-9. `ResearchKnowledgeStore.addPreliminaryConclusion(...)` exposes an entry point for agent-authored tentative conclusions with basis, evidence URLs, and bounded confidence. It is **not yet called by an autonomous synthesis stage**; current web research extracts source statements rather than generating free-form synthesis.
+9. PR #20 wires `ResearchKnowledgeStore.addPreliminaryConclusion(...)` into a small rule-only inference pass after source-attributed findings are stored. It writes one low-confidence preliminary note per touched cluster (isolated observation, thematic relation to older evidence, repeated same-source excerpt, or possible contradiction), with basis observation IDs and evidence URLs. These notes stay out of factual MemoryStore. This is not LLM-level synthesis and does not establish truth.
 10. App version is 3.6.4 / versionCode 364; artifact/release metadata and README reflect the current version.
 
 Important mismatch to remember:
@@ -42,7 +42,7 @@ Important mismatch to remember:
 3. Install over the previous version and repeat the same Initiative question on the phone.
 4. Confirm both behaviours: (a) a usable report appears and the task advances; (b) preliminary observations appear in the cluster panel with URL/source attribution, and a similar-but-not-identical later statement joins the cluster as a separate member.
 5. If no observations are extracted, confirm the task remains incomplete. Record the exact diagnostics. If all providers show network errors, investigate phone network/VPN/filtering; if providers return HTTP 200 with zero parsed results, inspect parser markup.
-6. Next reasoning milestone: wire `ResearchKnowledgeStore.addPreliminaryConclusion(...)` into a real local rule/hypothesis stage; do not claim autonomous synthesis until a caller uses this method.
+6. Review PR #20 on top of PR #16, confirm Android CI on the combined revision, then test that one preliminary note is written per touched cluster and repeated/contradictory evidence stays traceable after restart.
 7. Only after physical-device verification decide whether PR #16 is ready to merge and publish a release.
 
 ## Long-term project goals (do not lose)
