@@ -31,10 +31,7 @@ public final class InitiativeWorker extends Worker {
         android.content.SharedPreferences prefs = context.getSharedPreferences(
                 "vector_initiative", Context.MODE_PRIVATE);
         boolean dailyResearchAllowed = prefs.getBoolean("daily_research_consent", false);
-        String apiKey = context.getSharedPreferences("vector_settings", Context.MODE_PRIVATE)
-                .getString("openai_key", "").trim();
-
-        if (dailyResearchAllowed && !apiKey.isEmpty()) {
+        if (dailyResearchAllowed) {
             try {
                 MemoryStore store = new MemoryStore(context);
                 String topicId = "";
@@ -59,7 +56,7 @@ public final class InitiativeWorker extends Worker {
 
                 if (!question.trim().isEmpty()
                         && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(context, question)) {
-                    OpenAIWebTeacher.Result result = OpenAIWebTeacher.researchQuestion(apiKey, question);
+                    FreeWebResearch.Result result = FreeWebResearch.research(question);
                     if (result.report != null && !result.report.trim().isEmpty()) {
                         InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
                         String summary = result.report.length() > 650
@@ -89,9 +86,7 @@ public final class InitiativeWorker extends Worker {
         boolean reminderDue = now - lastTime >= REPEAT_AFTER_MS;
         if (changed || reminderDue) {
             String note = report.displayText();
-            if ("RESEARCH".equals(report.taskType) && apiKey.isEmpty()) {
-                note += "\n\nЧтобы выполнить веб-исследование: добавь OpenAI API key в разделе «Настройки». Один запуск использует API-квоту.";
-            } else if ("RESEARCH".equals(report.taskType) && !dailyResearchAllowed) {
+            if ("RESEARCH".equals(report.taskType) && !dailyResearchAllowed) {
                 note += "\n\nФоновое веб-исследование не разрешено. Включи его в Astra Initiative или запусти исследование вручную.";
             }
             boolean posted = postMessage(context,
