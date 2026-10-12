@@ -121,12 +121,12 @@ public final class InitiativeActivity extends Activity {
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != REQUEST_NOTIFICATIONS) return;
-        // Consent is explicit: the button states that daily web research uses the user's API quota.
+        // Consent is explicit because background networking can run without the app in the foreground.
         InitiativeScheduler.enable(this);
         boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         renderStatus(granted
-                ? "Ежедневное исследование включено; уведомления разрешены."
-                : "Ежедневное исследование включено, но уведомления запрещены. Фоновая задача всё равно может выполняться.");
+                ? "Ежедневное бесплатное исследование включено; уведомления разрешены."
+                : "Ежедневное бесплатное исследование включено, но уведомления запрещены. Фоновая задача всё равно может выполняться.");
     }
 
     private void runResearch() {
