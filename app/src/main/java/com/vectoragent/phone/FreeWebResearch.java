@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * Therefore this is a best-effort fallback and must never promote a factual memory item.
  */
 public final class FreeWebResearch {
-    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 VectorAgentPhone/3.6";
+    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
     private static final int CONNECT_TIMEOUT_MS = 9000;
     private static final int READ_TIMEOUT_MS = 12000;
     private static final int MAX_SEARCH_BYTES = 450_000;
@@ -69,24 +69,28 @@ public final class FreeWebResearch {
         if (q.length() < 5) throw new IOException("Вопрос слишком короткий для поиска");
 
         List<SearchHit> hits = new ArrayList<>();
-        IOException searchFailure = null;
-        try {
-            hits.addAll(searchDuckDuckGo(q));
-        } catch (IOException e) {
-            searchFailure = e;
-        }
+        List<String> diagnostics = new ArrayList<>();
+        collect("DDG HTML", () -> searchDuckDuckGo(q), hits, diagnostics);
 
-        // Wikimedia is a stable, public, keyless fallback if the HTML search provider is blocked.
-        if (hits.size() < 3) {
-            try { addWikipediaHits(q, hits); }
-            catch (IOException e) { if (hits.isEmpty() && searchFailure == null) searchFailure = e; }
+        if (dedupeHits(hits).size() < 3) {
+            collect("DDG Lite", () -> searchDuckDuckGoLite(q), hits, diagnostics);
+        }
+        if (dedupeHits(hits).size() < 3) {
+            collect("Bing", () -> searchBing(q), hits, diagnostics);
+        }
+        if (dedupeHits(hits).size() < 3) {
+            collect("Wikipedia RU", () -> wikipediaSearch(q, "ru"), hits, diagnostics);
+        }
+        if (dedupeHits(hits).size() < 3) {
+            collect("Wikipedia EN", () -> wikipediaSearch(q, "en"), hits, diagnostics);
         }
 
         hits = dedupeHits(hits);
         if (hits.isEmpty()) {
-            String message = "Бесплатный поиск не вернул доступных результатов. Возможны блокировка поисковой выдачи, отсутствие сети или изменение HTML-разметки.";
-            if (searchFailure != null) message += " Причина: " + safeMessage(searchFailure);
-            throw new IOException(message);
+            String detail = String.join("; ", diagnostics);
+            if (detail.length() > 230) detail = detail.substring(0, 230) + "…";
+            throw new IOException("Не удалось получить результаты ни от одного бесплатного источника. Диагностика: "
+                    + detail + ". Задача оставлена незавершённой.");
         }
 
         List<Source> sources = new ArrayList<>();
@@ -106,17 +110,15 @@ public final class FreeWebResearch {
                 pageText = extractReadableText(html);
                 fetched++;
             } catch (IOException ignored) {
-                // Search snippets are still useful evidence, but report them as snippets, not full-page extracts.
+                // The result snippet remains evidence, but is explicitly labelled as a snippet in the report.
             }
 
             String extract = chooseSentences(q, pageText, 2);
             String snippet = clean(hit.snippet);
             if (extract.isEmpty() && snippet.isEmpty()) continue;
-            sources.add(new Source(pageTitle, hit.url, domain,
-                    snippet, extract));
+            sources.add(new Source(pageTitle, hit.url, domain, snippet, extract));
         }
 
-        // If domain de-duplication or page failures left no readable sources, preserve search snippets.
         if (sources.isEmpty()) {
             for (SearchHit hit : hits) {
                 String domain = domain(hit.url);
@@ -125,12 +127,25 @@ public final class FreeWebResearch {
                 if (sources.size() >= MAX_SOURCE_PAGES) break;
             }
         }
-        if (sources.isEmpty()) throw new IOException("Поиск нашёл страницы, но из них не удалось извлечь доступные сведения");
+        if (sources.isEmpty()) throw new IOException("Поиск нашёл ссылки, но не удалось извлечь ни фрагментов, ни текста страниц");
 
         String report = buildReport(q, sources, fetched);
         List<String> urls = new ArrayList<>();
         for (Source source : sources) if (!urls.contains(source.url)) urls.add(source.url);
         return new Result(report, urls.toArray(new String[0]), fetched);
+    }
+
+    private interface SearchOperation { List<SearchHit> run() throws IOException; }
+
+    private static void collect(String provider, SearchOperation operation,
+                                List<SearchHit> hits, List<String> diagnostics) {
+        try {
+            List<SearchHit> found = operation.run();
+            hits.addAll(found);
+            diagnostics.add(provider + ": " + found.size() + " результатов");
+        } catch (IOException e) {
+            diagnostics.add(provider + ": " + safeMessage(e));
+        }
     }
 
     private static List<SearchHit> searchDuckDuckGo(String query) throws IOException {
@@ -152,35 +167,83 @@ public final class FreeWebResearch {
         return out;
     }
 
+    private static List<SearchHit> searchDuckDuckGoLite(String query) throws IOException {
+        String html = get("https://lite.duckduckgo.com/lite/?q=" + encode(query), MAX_SEARCH_BYTES);
+        List<SearchHit> out = new ArrayList<>();
+        Pattern anchors = Pattern.compile("(?is)<a\\b([^>]*?)>(.*?)</a>");
+        Matcher m = anchors.matcher(html);
+        while (m.find() && out.size() < 10) {
+            String attrs = m.group(1);
+            if (!attrs.toLowerCase(Locale.ROOT).contains("result-link")) continue;
+            String href = attribute(attrs, "href");
+            String title = clean(stripTags(m.group(2)));
+            String resolved = unwrapSearchUrl(href);
+            if (!isHttp(resolved) || title.isEmpty() || isSearchProvider(resolved)) continue;
+            out.add(new SearchHit(title, resolved, findLiteSnippet(html, m.end())));
+        }
+        return out;
+    }
+
+    private static String findLiteSnippet(String html, int from) {
+        int end = Math.min(html.length(), from + 2200);
+        String window = html.substring(from, end);
+        Matcher m = Pattern.compile("(?is)<td[^>]*class=[\\"'][^\\"']*result-snippet[^\\"']*[\\"'][^>]*>(.*?)</td>").matcher(window);
+        if (m.find()) return clean(stripTags(m.group(1)));
+        m = Pattern.compile("(?is)<td[^>]*>(.*?)</td>").matcher(window);
+        return m.find() ? clean(stripTags(m.group(1))) : "";
+    }
+
+    private static List<SearchHit> searchBing(String query) throws IOException {
+        String html = get("https://www.bing.com/search?q=" + encode(query), MAX_SEARCH_BYTES);
+        List<SearchHit> out = new ArrayList<>();
+        Pattern blocks = Pattern.compile("(?is)<li\\b(?=[^>]*class=[\\"'][^\\"']*\\bb_algo\\b)[^>]*>(.*?)</li>");
+        Matcher block = blocks.matcher(html);
+        while (block.find() && out.size() < 10) {
+            String body = block.group(1);
+            Matcher anchor = Pattern.compile("(?is)<h2[^>]*>\\s*<a\\b([^>]*?)>(.*?)</a>").matcher(body);
+            if (!anchor.find()) continue;
+            String href = attribute(anchor.group(1), "href");
+            String title = clean(stripTags(anchor.group(2)));
+            if (!isHttp(href) || title.isEmpty() || isSearchProvider(href)) continue;
+            Matcher snippetMatcher = Pattern.compile("(?is)<p[^>]*>(.*?)</p>").matcher(body);
+            String snippet = snippetMatcher.find() ? clean(stripTags(snippetMatcher.group(1))) : "";
+            out.add(new SearchHit(title, unwrapSearchUrl(href), snippet));
+        }
+        return out;
+    }
+
+    private static List<SearchHit> wikipediaSearch(String query, String language) throws IOException {
+        String host = language + ".wikipedia.org";
+        String apiUrl = "https://" + host + "/w/api.php?action=query&list=search&srsearch="
+                + encode(query) + "&format=json&utf8=1&srlimit=5";
+        String json = get(apiUrl, 250_000);
+        JSONObject root;
+        try {
+            root = new JSONObject(json);
+        } catch (org.json.JSONException e) {
+            throw new IOException("ответ не похож на JSON (возможно, страница блокировки)", e);
+        }
+        JSONObject queryObj = root.optJSONObject("query");
+        JSONArray arr = queryObj == null ? null : queryObj.optJSONArray("search");
+        List<SearchHit> out = new ArrayList<>();
+        if (arr == null) return out;
+        for (int i = 0; i < arr.length() && out.size() < 8; i++) {
+            JSONObject item = arr.optJSONObject(i);
+            if (item == null) continue;
+            String title = item.optString("title", "").trim();
+            if (title.isEmpty()) continue;
+            String pageUrl = "https://" + host + "/wiki/" + encode(title.replace(' ', '_')).replace("%2F", "/");
+            String snippet = clean(stripTags(item.optString("snippet", "")));
+            out.add(new SearchHit(title, pageUrl, snippet));
+        }
+        return out;
+    }
+
     private static String findSnippet(String html, int from) {
         int end = Math.min(html.length(), from + 3500);
         String window = html.substring(from, end);
         Matcher m = Pattern.compile("(?is)<(?:a|div|span)[^>]*class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>(.*?)</(?:a|div|span)>").matcher(window);
         return m.find() ? clean(stripTags(m.group(1))) : "";
-    }
-
-    private static void addWikipediaHits(String query, List<SearchHit> hits) throws IOException {
-        String url = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch="
-                + encode(query) + "&format=json&utf8=1&srlimit=5";
-        String json = get(url, 250_000);
-        JSONObject root;
-        try {
-            root = new JSONObject(json);
-        } catch (org.json.JSONException e) {
-            throw new IOException("Не удалось разобрать ответ бесплатного поиска Wikipedia", e);
-        }
-        JSONObject queryObj = root.optJSONObject("query");
-        JSONArray arr = queryObj == null ? null : queryObj.optJSONArray("search");
-        if (arr == null) return;
-        for (int i = 0; i < arr.length() && hits.size() < 12; i++) {
-            JSONObject item = arr.optJSONObject(i);
-            if (item == null) continue;
-            String title = item.optString("title", "").trim();
-            if (title.isEmpty()) continue;
-            String pageUrl = "https://en.wikipedia.org/wiki/" + encode(title.replace(' ', '_')).replace("%2F", "/");
-            String snippet = clean(stripTags(item.optString("snippet", "")));
-            hits.add(new SearchHit(title, pageUrl, snippet));
-        }
     }
 
     private static List<SearchHit> dedupeHits(List<SearchHit> input) {
