@@ -13,8 +13,9 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 /**
- * Periodically inspects local memory and notifies about a concrete unresolved item.
- * The worker never changes factual memory or executes external actions.
+ * When the user explicitly enables daily research and has configured an API key,
+ * researches at most the next unresolved task once per scheduled run. It never
+ * changes MemoryStore facts or executes commands in other apps.
  */
 public final class InitiativeWorker extends Worker {
     private static final String CHANNEL = "astra_initiative";
@@ -29,21 +30,87 @@ public final class InitiativeWorker extends Worker {
 
         android.content.SharedPreferences prefs = context.getSharedPreferences(
                 "vector_initiative", Context.MODE_PRIVATE);
+        boolean dailyResearchAllowed = prefs.getBoolean("daily_research_consent", false);
+        String apiKey = context.getSharedPreferences("vector_settings", Context.MODE_PRIVATE)
+                .getString("openai_key", "").trim();
+
+        if (dailyResearchAllowed && !apiKey.isEmpty()) {
+            try {
+                MemoryStore store = new MemoryStore(context);
+                String topicId = "";
+                String title = report.title;
+                String question = "";
+
+                if ("RESEARCH".equals(report.taskType)) {
+                    InitiativeResearchAgenda.Topic topic = InitiativeResearchAgenda.get(context, report.taskId);
+                    if (topic != null && !topic.completed) {
+                        topicId = topic.id; title = topic.title; question = topic.question;
+                    }
+                } else if ("CANDIDATE".equals(report.taskType) || "CONFLICT".equals(report.taskType)) {
+                    question = store.researchTarget(report.taskId);
+                } else if ("HYPOTHESIS".equals(report.taskType)) {
+                    for (MemoryStore.Hypothesis h : store.hypotheses()) {
+                        if (report.taskId.equals(h.id)) {
+                            question = "Проверить гипотезу: " + h.rule + " Основание: " + h.evidence;
+                            break;
+                        }
+                    }
+                }
+
+                if (!question.trim().isEmpty()
+                        && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(context, question)) {
+                    OpenAIWebTeacher.Result result = OpenAIWebTeacher.research(apiKey, question, store);
+                    if (result.report != null && !result.report.trim().isEmpty()) {
+                        InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
+                        String summary = result.report.length() > 650
+                                ? result.report.substring(0, 650) + "…" : result.report;
+                        postMessage(context, "Astra завершила исследование", title + "\n\n" + summary
+                                + "\n\nПолный отчёт и источники сохранены в Astra Initiative.");
+                        InitiativeEngine.scan(context);
+                        return Result.success();
+                    }
+                    postMessage(context, "Astra: пустой ответ исследования",
+                            title + "\nВеб-поиск не вернул текста. Задача не отмечена завершённой.");
+                    return Result.success();
+                }
+            } catch (Exception e) {
+                postMessage(context, "Astra: исследование не удалось",
+                        report.title + "\n" + safeMessage(e)
+                        + "\nЗадача не помечена выполненной; попробуй исследовать её вручную.");
+                return Result.success();
+            }
+        }
+
+        String fingerprint = report.fingerprint;
         long now = System.currentTimeMillis();
         String previous = prefs.getString("last_notified_fingerprint", "");
         long lastTime = prefs.getLong("last_notified_at", 0L);
-        boolean changed = !report.fingerprint.equals(previous);
+        boolean changed = !fingerprint.equals(previous);
         boolean reminderDue = now - lastTime >= REPEAT_AFTER_MS;
         if (changed || reminderDue) {
-            boolean posted = postNotification(context, report);
-            // Avoid spamming if notification permission is denied; still show latest report in the app.
-            if (posted) prefs.edit().putString("last_notified_fingerprint", report.fingerprint)
+            String note = report.displayText();
+            if ("RESEARCH".equals(report.taskType) && apiKey.isEmpty()) {
+                note += "\n\nЧтобы выполнить веб-исследование: добавь OpenAI API key в разделе «Настройки». Один запуск использует API-квоту.";
+            } else if ("RESEARCH".equals(report.taskType) && !dailyResearchAllowed) {
+                note += "\n\nФоновое веб-исследование не разрешено. Включи его в Astra Initiative или запусти исследование вручную.";
+            }
+            boolean posted = postMessage(context,
+                    "Astra выбрала следующую задачу: " + report.title, note);
+            if (posted) prefs.edit().putString("last_notified_fingerprint", fingerprint)
                     .putLong("last_notified_at", now).apply();
         }
         return Result.success();
     }
 
-    private boolean postNotification(Context context, InitiativeEngine.Report report) {
+    private String safeMessage(Exception e) {
+        String message = e.getMessage();
+        if (message == null || message.trim().isEmpty()) return e.getClass().getSimpleName();
+        // Avoid dumping large HTTP bodies, request headers or secrets into Android notifications.
+        message = message.replaceAll("(?i)Bearer\\s+[^\\s]+", "Bearer [redacted]");
+        return message.length() > 240 ? message.substring(0, 240) + "…" : message;
+    }
+
+    private boolean postMessage(Context context, String title, String message) {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return false;
 
@@ -52,7 +119,7 @@ public final class InitiativeWorker extends Worker {
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(CHANNEL, "Astra: инициативы",
                     NotificationManager.IMPORTANCE_DEFAULT);
-            channel.setDescription("Новые нерешённые задачи, обнаруженные в локальной памяти");
+            channel.setDescription("Исследовательские задачи и результаты Astra");
             manager.createNotificationChannel(channel);
         }
 
@@ -65,9 +132,9 @@ public final class InitiativeWorker extends Worker {
                 : new Notification.Builder(context);
         Notification notification = builder
                 .setSmallIcon(android.R.drawable.ic_menu_search)
-                .setContentTitle("Astra нашла нерешённую задачу")
-                .setContentText(report.title)
-                .setStyle(new Notification.BigTextStyle().bigText(report.nextStep))
+                .setContentTitle(title)
+                .setContentText(message.length() > 220 ? message.substring(0, 220) + "…" : message)
+                .setStyle(new Notification.BigTextStyle().bigText(message))
                 .setContentIntent(pending)
                 .setAutoCancel(true)
                 .build();
