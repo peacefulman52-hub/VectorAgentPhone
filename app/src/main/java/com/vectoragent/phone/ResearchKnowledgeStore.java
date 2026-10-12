@@ -91,6 +91,151 @@ public final class ResearchKnowledgeStore {
         return ingestFindings(context, title, question, findings);
     }
 
+    /**
+     * Mirrors one symbolic MemoryStore hypothesis into the preliminary cluster graph.
+     * Stable identity makes repeated InitiativeEngine scans update the same record rather
+     * than manufacturing extra support. No external URL is assigned to local evidence.
+     */
+    public static synchronized int upsertLocalHypothesis(Context context, String hypothesisId,
+            String rule, String evidence, String localStatus, int support, String version) {
+        if (context == null || hypothesisId == null || hypothesisId.trim().isEmpty()
+                || rule == null || rule.trim().length() < 8) return 0;
+
+        Context app = context.getApplicationContext();
+        SharedPreferences p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        JSONArray observations = readArray(p.getString(OBSERVATIONS, "[]"));
+        JSONArray clusters = readArray(p.getString(CLUSTERS, "[]"));
+        String stableId = "local-hypothesis:" + hypothesisId.trim();
+        String text = "Локальная гипотеза агента: " + shorten(rule.trim(), 700);
+        String normalizedStatus = localStatus == null || localStatus.trim().isEmpty()
+                ? "CANDIDATE" : localStatus.trim().toUpperCase(Locale.ROOT);
+        double confidence = "REJECTED".equals(normalizedStatus) ? 0.05
+                : "ACTIVE".equals(normalizedStatus) ? 0.20 : 0.12;
+        String basis = stableId + "; rule=" + rule.trim()
+                + "; local evidence=" + (evidence == null ? "" : evidence.trim())
+                + "; status=" + normalizedStatus + "; support=" + Math.max(0, support)
+                + "; version=" + (version == null ? "" : version.trim())
+                + "; origin=MemoryStore symbolic hypothesis; no external source URL is asserted.";
+
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < observations.length(); i++) {
+            JSONObject old = observations.optJSONObject(i);
+            if (old == null || !"LOCAL_SYMBOLIC_HYPOTHESIS".equals(old.optString("origin"))
+                    || !stableId.equals(old.optString("basisHypothesisId"))) continue;
+            try {
+                old.put("text", text);
+                old.put("normalizedText", normalize(text));
+                old.put("basis", basis);
+                old.put("hypothesisStatus", normalizedStatus);
+                old.put("hypothesisSupport", Math.max(0, support));
+                old.put("hypothesisVersion", version == null ? "" : version.trim());
+                old.put("confidence", confidence);
+                old.put("conclusionConfidence", confidence);
+                old.put("lastSeenAt", now);
+                old.put("updatedAt", now);
+                // repeatCount deliberately does not increase during a scan/update.
+                p.edit().putString(OBSERVATIONS, observations.toString()).apply();
+                return 1;
+            } catch (Exception ignored) {
+                return 0;
+            }
+        }
+
+        ClusterMatch match = findCluster(observations, clusters, text);
+        String clusterId;
+        String relation;
+        String similarToObservationId = "";
+        double similarity = 0.0;
+        try {
+            if (match == null) {
+                clusterId = "rk-" + Long.toHexString(now) + "-hyp-" + observations.length();
+                relation = "NEW_LOCAL_HYPOTHESIS_CLUSTER";
+                JSONObject cluster = new JSONObject();
+                cluster.put("id", clusterId);
+                cluster.put("label", shorten(firstSentence(text), 90));
+                cluster.put("members", new JSONArray());
+                cluster.put("createdAt", now);
+                cluster.put("updatedAt", now);
+                clusters.put(cluster);
+            } else {
+                clusterId = match.clusterId;
+                relation = "SIMILAR_TO_SOURCE_OBSERVATION";
+                similarToObservationId = match.referenceId;
+                similarity = match.score;
+            }
+
+            String id = "obs-" + Long.toHexString(now) + "-hyp-" + observations.length();
+            JSONObject item = new JSONObject();
+            item.put("id", id);
+            item.put("clusterId", clusterId);
+            item.put("text", text);
+            item.put("normalizedText", normalize(text));
+            item.put("relationToCluster", relation);
+            item.put("similarityToCluster", similarity);
+            item.put("similarToObservationId", similarToObservationId);
+            item.put("basisObservationId", "");
+            item.put("basisHypothesisId", stableId);
+            item.put("reportTitle", "Локальная гипотеза MemoryStore");
+            item.put("researchQuestion", "");
+            item.put("sourceUrl", "");
+            item.put("sourceDomain", "");
+            item.put("evidenceUrls", new JSONArray());
+            item.put("origin", "LOCAL_SYMBOLIC_HYPOTHESIS");
+            item.put("basis", basis);
+            item.put("status", "PRELIMINARY");
+            item.put("confidence", confidence);
+            item.put("hypothesisStatus", normalizedStatus);
+            item.put("hypothesisSupport", Math.max(0, support));
+            item.put("hypothesisVersion", version == null ? "" : version.trim());
+            item.put("preliminaryConclusion", match == null
+                    ? "Локальная гипотеза сохранена без внешнего URL-подтверждения."
+                    : "Гипотеза тематически похожа на исходное наблюдение " + similarToObservationId
+                      + "; это сходство, а не независимое подтверждение.");
+            item.put("conclusionStatus", "CANDIDATE");
+            item.put("conclusionConfidence", confidence);
+            item.put("conclusionBasis", "Производная от локальной символической гипотезы; не считать независимым веб-свидетельством.");
+            item.put("repeatCount", 1);
+            item.put("observedAt", now);
+            item.put("lastSeenAt", now);
+            item.put("createdAt", now);
+            item.put("updatedAt", now);
+            observations.put(item);
+
+            JSONObject cluster = findClusterById(clusters, clusterId);
+            if (cluster != null) {
+                JSONArray members = cluster.optJSONArray("members");
+                if (members == null) members = new JSONArray();
+                members.put(id);
+                cluster.put("members", members);
+                cluster.put("updatedAt", now);
+            }
+            while (observations.length() > MAX_OBSERVATIONS) observations.remove(0);
+            Set<String> alive = new HashSet<>();
+            for (int i = 0; i < observations.length(); i++) {
+                JSONObject row = observations.optJSONObject(i);
+                if (row != null) alive.add(row.optString("id"));
+            }
+            for (int i = clusters.length() - 1; i >= 0; i--) {
+                JSONObject cluster = clusters.optJSONObject(i);
+                if (cluster == null) { clusters.remove(i); continue; }
+                JSONArray priorMembers = cluster.optJSONArray("members");
+                JSONArray keep = new JSONArray();
+                if (priorMembers != null) for (int j = 0; j < priorMembers.length(); j++) {
+                    String member = priorMembers.optString(j);
+                    if (alive.contains(member)) keep.put(member);
+                }
+                cluster.put("members", keep);
+                if (keep.length() == 0) clusters.remove(i);
+            }
+            while (clusters.length() > MAX_CLUSTERS) clusters.remove(0);
+            p.edit().putString(OBSERVATIONS, observations.toString())
+                    .putString(CLUSTERS, clusters.toString()).apply();
+            return 1;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     private static int ingestFindings(Context context, String title, String question,
                                       List<Finding> findings) {
         if (context == null || findings == null || findings.isEmpty()) return 0;
