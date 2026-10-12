@@ -6,10 +6,10 @@ This file is the durable handoff for work that must survive conversation limits.
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Free web research with persistent preliminary finding clusters (v3.6.5)"
+- Active work: PR #16, "Free web research with cautious conclusion clusters and tests (v3.6.6)"
 - PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
 - Working branch: `agent/initiative-loop-1`
-- App version: `3.6.5`, `versionCode 365` so it can upgrade an installed `3.6.4` build.
+- App version: `3.6.6`, `versionCode 366` so it can upgrade an installed `3.6.5` build.
 - Code changes include compact search queries, provider fallback, a persistent source-attributed research store, a cautious extractive takeaway per successful report, basis links to source-observation IDs, and a UI panel showing topical clusters and confidence.
 - Validated v3.6.5 candidate SHA: `af7e36b667510aa7bc7b13b0a4bf5726d407a755`.
 - GitHub Actions run #260 passed `testDebugUnitTest`, `assembleDebug`, and artifact upload for that exact SHA: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38265896060
@@ -32,7 +32,7 @@ Changes committed to PR #16:
 8. The Initiative UI has a visible panel for accumulated preliminary clusters, showing status, heuristic score (explicitly not a probability of truth), relation type, source domain, and basis IDs.
 9. After successful source-attributed extraction, `InitiativeResearchAgenda.saveResult()` records one modest extractive takeaway using `draftConservativeConclusion(...)` + `addPreliminaryConclusion(...)`. The takeaway quotes a real snippet, links to a raw source observation, and is never an independent evidence anchor. This is not free-form or LLM-level reasoning.
 10. `ResearchKnowledgeStore.upsertLocalHypothesis(...)` mirrors `MemoryStore.discoverHypotheses()` output into the same graph using stable IDs `local-hypothesis:<id>`; repeated scans update the same item in place. Hypothesis records include local rule/evidence/status/support/version as basis, set `sourceUrl=""` and `evidenceUrls=[]` absent real source provenance, and cannot become evidence anchors because `findCluster()` only matches `FREE_WEB_EXTRACT`.
-11. App version is 3.6.5 / versionCode 365. CI runs `testDebugUnitTest` before `assembleDebug`. Robolectric tests cover footer and source URL attribution/fallback, exact duplicate idempotency, related-but-distinct clustering, numeric/negation warnings, empty extraction, takeaway basis links, and stable local-hypothesis upsert/rejection/repeated scans without invented URLs.
+11. App version is 3.6.6 / versionCode 366. CI runs `testDebugUnitTest` before `assembleDebug`. Robolectric tests cover footer and source URL attribution/fallback, exact duplicate idempotency, related-but-distinct clustering, numeric/negation warnings, empty extraction, takeaway basis links, and stable local-hypothesis upsert/rejection/repeated scans without invented URLs.
 
 Important mismatch to remember:
 - The new branch's failure message should start with "Бесплатное веб-исследование не удалось:" and include provider diagnostics such as DDG HTML, DDG Lite, Bing, Wikipedia RU, Wikipedia EN.

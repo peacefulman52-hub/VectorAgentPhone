@@ -23,7 +23,7 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
-## v3.6.5 — Cautious takeaways and regression tests
+## v3.6.6 — Cautious takeaways, local hypothesis clusters and tests
 
 - Each successful source-attributed research run now adds one modest extractive takeaway alongside the original observations. The takeaway cites the source material and explicitly says it is not a verified fact or proof that sources are independent.
 - Similarity links point back to a source observation ID. Derived takeaways remain in the same local cluster but are excluded from the evidence-matching pool, so one conclusion cannot become independent evidence for another.
@@ -31,6 +31,8 @@ GitHub Actions produces an installable debug APK.
 - A finding without a traceable URL is not usable progress. If extraction produces no attributed observation, the report may be retained for diagnosis but the topic stays incomplete.
 - Offline Robolectric regression tests cover source-block URL attribution, footer exclusion, ambiguous/missing URL refusal, exact same-source repeat handling, related-but-distinct clustering, numeric and negation warnings, derived-takeaway linkage, and empty extraction.
 - GitHub Actions runs `testDebugUnitTest` before assembling the APK. CI still cannot replace a real Android network/persistence test.
+- During Initiative scans, symbolic hypotheses from `MemoryStore.discoverHypotheses()` are mirrored into the same research cluster store using stable `local-hypothesis:<id>` identities. Repeated scans update in place instead of adding support; local hypotheses carry rule/evidence/status/version in their basis and receive no invented web URLs. Similarity may link a hypothesis to source observations, but never makes the hypothesis independent web evidence.
+- The cluster panel distinguishes local symbolic hypotheses from extracted web observations and labels the confidence value as an **heuristic score, not a probability of truth**.
 - This feature is entirely local after downloading public pages and requires no paid API key. Its takeaway generation is extractive/heuristic, not LLM-level synthesis.
 
 ## v3.6.4 — Cautious findings and similarity clusters
