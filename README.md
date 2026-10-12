@@ -25,15 +25,14 @@ GitHub Actions produces an installable debug APK.
 
 ## v3.6.0 — Initiative Loop
 
-Adds an opt-in proactive review cycle:
-
-- ranks unresolved conflicts before unverified candidates and open hypotheses;
-- stores the latest initiative report between app launches;
-- runs a WorkManager scan roughly every 24 hours and may notify about changed or overdue work;
-- keeps initiative proposals separate from factual memory: background work never resolves conflicts, promotes facts, or clicks through external apps;
-- exposes scan-now, enable and disable controls in the Initiative screen.
-
-Periodic execution is best-effort and may be delayed by Android battery optimizations. Notifications require permission on Android 13 and later.
+- An opt-in Android WorkManager cycle stores and notifies about the next useful action.
+- A persistent starter programme includes seven real research topics: chat/session continuity, the agent loop, Android background limits, evidence quality, agent evaluations, measurable human-positive behavior, and phone-automation safety.
+- The Initiative screen lists goals, accepts custom questions, performs a web study on demand, and saves reports plus source URLs.
+- Daily web research is explicitly opt-in, requires the user-saved OpenAI API key, and may consume API quota. At most one research task is run per scheduled cycle.
+- Initiative research uses the Responses API `web_search` tool with model `gpt-5.5`. It sends only the selected question—not the full local fact memory.
+- Reports are stored separately from factual MemoryStore. A report never automatically promotes a fact or resolves a conflict.
+- Successfully researched identical items are skipped to prevent repeated API calls; the queue advances to the next open item.
+- WorkManager is best-effort and Android may delay periodic execution. Notifications require permission on Android 13+.
 
 ## v1.5.0
 
