@@ -384,9 +384,15 @@ public final class ResearchKnowledgeStore {
     private static List<Finding> extractFindings(String report, String[] urls) {
         List<Finding> out = new ArrayList<>();
         String currentUrl = "";
-        String fallbackUrl = singleUnambiguousUrl(urls);
-        boolean capture = false;
         String[] lines = report.split("\\r?\\n");
+        int sourceBlockCount = 0;
+        for (String raw : lines) {
+            if (raw.trim().matches("^\\\\d+\\\\.\\\\s+.*")) sourceBlockCount++;
+        }
+        // A fallback URL is unambiguous only if both the URL list and report identify
+        // exactly one source block. Never smear one URL across multiple unlabelled blocks.
+        String fallbackUrl = sourceBlockCount == 1 ? singleUnambiguousUrl(urls) : "";
+        boolean capture = false;
         for (String raw : lines) {
             String line = raw.trim();
             if (line.matches("^\\d+\\.\\s+.*")) {
