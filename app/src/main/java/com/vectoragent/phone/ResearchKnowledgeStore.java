@@ -547,7 +547,8 @@ public final class ResearchKnowledgeStore {
                     if (item == null) continue;
                     out.append("\n  • ").append(item.optString("text"));
                     out.append("\n    ").append(item.optString("status", "PRELIMINARY"))
-                       .append(" · уверенность ").append(Math.round(item.optDouble("confidence", 0.25) * 100)).append("%");
+                       .append(" · эвристический балл ").append(Math.round(item.optDouble("confidence", 0.25) * 100))
+                       .append("% (не вероятность истинности)");
                     if ("AGENT_PRELIMINARY_CONCLUSION".equals(item.optString("origin"))) {
                         out.append(" · предварительный вывод агента");
                     } else {
