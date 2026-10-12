@@ -145,9 +145,11 @@ public final class InitiativeResearchAgenda {
         if (observationCount > 0) {
             String takeaway = ResearchKnowledgeStore.draftConservativeConclusion(title, question, report, urls);
             if (!takeaway.isEmpty()) {
+                String[] takeawayEvidenceUrls =
+                        ResearchKnowledgeStore.draftConservativeConclusionEvidenceUrls(report, urls);
                 ResearchKnowledgeStore.addPreliminaryConclusion(context, takeaway, title, question,
                         "Extractive summary of source-attributed snippets; not a verified factual claim.",
-                        urls, 0.15);
+                        takeawayEvidenceUrls, 0.15);
             }
         }
         SharedPreferences p=prefs(context);
