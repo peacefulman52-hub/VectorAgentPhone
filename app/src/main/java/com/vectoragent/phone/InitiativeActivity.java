@@ -21,7 +21,7 @@ import android.widget.Toast;
 public final class InitiativeActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 73;
     private LinearLayout root;
-    private TextView status, reportView, agendaView, researchView;
+    private TextView status, reportView, agendaView, researchView, knowledgeView;
     private EditText customQuestion;
     private Button scanButton, researchButton;
     private boolean researchRunning;
@@ -83,6 +83,13 @@ public final class InitiativeActivity extends Activity {
         researchView.setAutoLinkMask(Linkify.WEB_URLS);
         researchView.setMovementMethod(LinkMovementMethod.getInstance());
         root.addView(researchView);
+
+        root.addView(tv("Накопленные кластеры предварительных выводов", 18));
+        knowledgeView = tv(ResearchKnowledgeStore.summaryText(this), 13);
+        root.addView(knowledgeView);
+        Button refreshKnowledge = btn("↻ Обновить кластеры выводов");
+        root.addView(refreshKnowledge);
+        refreshKnowledge.setOnClickListener(v -> refreshKnowledge());
 
         Button enable = btn("▶ Включить ежедневное бесплатное исследование");
         Button disable = btn("⏸ Выключить ежедневное исследование");
@@ -220,6 +227,11 @@ public final class InitiativeActivity extends Activity {
         researchView.setText(text);
         Linkify.addLinks(researchView, Linkify.WEB_URLS);
         researchView.setMovementMethod(LinkMovementMethod.getInstance());
+        refreshKnowledge();
+    }
+
+    private void refreshKnowledge() {
+        if (knowledgeView != null) knowledgeView.setText(ResearchKnowledgeStore.summaryText(this));
     }
 
     private void renderStatus(String value) {
