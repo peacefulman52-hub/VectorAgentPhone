@@ -190,13 +190,15 @@ public final class InitiativeActivity extends Activity {
                     });
                     return;
                 }
+                ResearchMemoryBridge.Summary bridge = ResearchMemoryBridge.ingest(store, savedQuestion, result.report);
                 InitiativeResearchAgenda.saveResult(this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
                 runOnUiThread(() -> {
                     setResearchText(InitiativeResearchAgenda.latestResultText(this));
                     refreshAgenda();
                     render(InitiativeEngine.scan(this));
                     renderStatus("Исследование сохранено. Найдено URL: " + (result.urls == null ? 0 : result.urls.length)
-                            + ". API-оплата не нужна; память фактов не изменялась.");
+                            + ". " + bridge.toDisplayString()
+                            + ". API-оплата не нужна; найденные выводы остаются предварительными.");
                     researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
                 });
             } catch (Exception e) {

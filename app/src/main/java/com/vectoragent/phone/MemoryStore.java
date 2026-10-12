@@ -174,6 +174,200 @@ public class MemoryStore {
         return "";
     }
 
+
+    /*
+     * Stores one extractive web finding without treating domain count as truth.
+     * Exact/near duplicates receive additional evidence; distinct findings stay CANDIDATE
+     * and may link to up to three related items. This method never promotes or rejects facts.
+     */
+    private static final class ResearchSimilarity {
+        final int shared;
+        final double score;
+        ResearchSimilarity(int shared, double score) { this.shared = shared; this.score = score; }
+    }
+    private static final class ResearchMatch {
+        final String id, text;
+        final double score;
+        final int shared;
+        final boolean possibleContradiction;
+        ResearchMatch(String id, String text, double score, int shared, boolean possibleContradiction) {
+            this.id = id; this.text = text; this.score = score; this.shared = shared;
+            this.possibleContradiction = possibleContradiction;
+        }
+    }
+
+    public synchronized String addResearchCandidate(String rawText, String question, String sourceUrl) {
+        String text = rawText == null ? "" : rawText.replaceAll("\\s+", " ").trim();
+        if (text.length() < 55) return "SKIPPED: finding too short";
+        if (text.length() > 520) {
+            int cut = text.lastIndexOf(' ', 520);
+            text = text.substring(0, cut >= 55 ? cut : 520).trim();
+        }
+        String url = sourceUrl == null ? "" : sourceUrl.trim();
+        if (!(url.startsWith("https://") || url.startsWith("http://"))) return "SKIPPED: no source URL";
+        if (text.isEmpty()) return "SKIPPED: empty finding";
+
+        JSONArray items = read();
+        String fingerprint = researchFingerprint(text);
+        int duplicateIndex = -1;
+        List<ResearchMatch> matches = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject old = items.optJSONObject(i);
+                if (old == null || "REJECTED".equals(old.optString("status"))) continue;
+                String oldText = old.optString("text", "").trim();
+                if (oldText.isEmpty()) continue;
+
+                if (fingerprint.equals(researchFingerprint(oldText))) {
+                    duplicateIndex = i;
+                    break;
+                }
+
+                ResearchSimilarity sim = researchSimilarity(text, oldText);
+                if (sim.shared >= 5 && sim.score >= 0.82) {
+                    duplicateIndex = i;
+                    break;
+                }
+                // Link only content-word overlap. Similarity is a cluster hint, never truth evidence.
+                if (sim.shared >= 2 && sim.score >= 0.15) {
+                    matches.add(new ResearchMatch(
+                            old.optString("id"), oldText, sim.score, sim.shared,
+                            contradicts(text, oldText)));
+                }
+            }
+
+            if (duplicateIndex >= 0) {
+                JSONObject existing = items.optJSONObject(duplicateIndex);
+                if (existing == null) return "SKIPPED: duplicate target unavailable";
+                boolean addedEvidence = appendResearchEvidence(existing, text, question, url);
+                if (addedEvidence) {
+                    addHistory(existing);
+                    existing.put("updated", System.currentTimeMillis());
+                    write(items);
+                    appendLearningLog("WEB_EVIDENCE_ATTACHED: " + existing.optString("id") + " ← " + url);
+                    return "ATTACHED:" + existing.optString("id");
+                }
+                return "ALREADY_ATTACHED:" + existing.optString("id");
+            }
+
+            java.util.Collections.sort(matches, new java.util.Comparator<ResearchMatch>() {
+                @Override public int compare(ResearchMatch a, ResearchMatch b) {
+                    return Double.compare(b.score, a.score);
+                }
+            });
+
+            long now = System.currentTimeMillis();
+            String id = "m-web-" + now + "-" + items.length();
+            JSONArray evidence = new JSONArray();
+            evidence.put(researchEvidenceObject(text, question, url, now));
+            JSONArray clusterLinks = new JSONArray();
+            StringBuilder relation = new StringBuilder("WEB_RESEARCH_FINDING");
+            int linked = 0;
+            for (ResearchMatch match : matches) {
+                if (linked >= 3) break;
+                JSONObject edge = new JSONObject();
+                String edgeType = match.possibleContradiction ? "POSSIBLE_CONTRADICTION_TO" : "SIMILAR_TO";
+                edge.put("targetId", match.id);
+                edge.put("type", edgeType);
+                edge.put("lexicalScore", Math.round(match.score * 100.0) / 100.0);
+                clusterLinks.put(edge);
+                relation.append("; ").append(edgeType).append(" ").append(match.id);
+                linked++;
+            }
+
+            JSONObject candidate = new JSONObject();
+            candidate.put("id", id);
+            candidate.put("text", text);
+            candidate.put("status", "CANDIDATE");
+            candidate.put("source", "WEB_RESEARCH");
+            candidate.put("provenance", "question=" + researchClip(question, 280) + "; sourceUrl=" + researchClip(url, 450));
+            candidate.put("relation", relation.toString());
+            candidate.put("clusterLinks", clusterLinks);
+            candidate.put("researchEvidence", evidence);
+            candidate.put("researchFingerprint", fingerprint);
+            candidate.put("learningState", "PROVISIONAL_WEB_EVIDENCE");
+            candidate.put("learningSignal", "EXTRACTED_SNIPPET_REQUIRES_REVIEW");
+            candidate.put("version", "1");
+            candidate.put("confidence", 0.35);
+            candidate.put("support", 1);
+            candidate.put("conflictWith", "");
+            candidate.put("created", now);
+            candidate.put("updated", now);
+            candidate.put("history", new JSONArray());
+            items.put(candidate);
+            write(items);
+            appendLearningLog("WEB_RESEARCH_CANDIDATE: " + id + " links=" + linked + " source=" + url);
+            return "ADDED:" + id + ":LINKS:" + linked;
+        } catch (Exception e) {
+            return "ERROR:" + e.getClass().getSimpleName();
+        }
+    }
+
+    private boolean appendResearchEvidence(JSONObject item, String text, String question, String url) throws Exception {
+        JSONArray evidence = item.optJSONArray("researchEvidence");
+        if (evidence == null) evidence = new JSONArray();
+        String fingerprint = researchFingerprint(text);
+        for (int i = 0; i < evidence.length(); i++) {
+            JSONObject old = evidence.optJSONObject(i);
+            if (old != null && url.equals(old.optString("url"))
+                    && fingerprint.equals(old.optString("findingFingerprint"))) return false;
+        }
+        evidence.put(researchEvidenceObject(text, question, url, System.currentTimeMillis()));
+        while (evidence.length() > 12) evidence.remove(0);
+        item.put("researchEvidence", evidence);
+        item.put("lastResearchAt", System.currentTimeMillis());
+        return true;
+    }
+
+    private JSONObject researchEvidenceObject(String text, String question, String url, long time) throws Exception {
+        JSONObject evidence = new JSONObject();
+        evidence.put("question", researchClip(question, 280));
+        evidence.put("url", researchClip(url, 450));
+        evidence.put("excerpt", researchClip(text, 520));
+        evidence.put("findingFingerprint", researchFingerprint(text));
+        evidence.put("recordedAt", time);
+        return evidence;
+    }
+
+    private String researchFingerprint(String text) {
+        return (text == null ? "" : text).toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{Nd}]+", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    private ResearchSimilarity researchSimilarity(String a, String b) {
+        java.util.Set<String> left = researchTokens(a);
+        java.util.Set<String> right = researchTokens(b);
+        int shared = 0;
+        for (String token : left) if (right.contains(token)) shared++;
+        int denominator = Math.max(left.size(), right.size());
+        return new ResearchSimilarity(shared, denominator == 0 ? 0.0 : (double) shared / denominator);
+    }
+
+    private java.util.Set<String> researchTokens(String text) {
+        java.util.Set<String> stop = new java.util.HashSet<>(java.util.Arrays.asList(
+                "это","этот","эта","эти","того","тогда","также","когда","который","которая","которые",
+                "между","через","после","перед","может","могут","нужно","если","для","или","его","ее",
+                "они","она","оно","что","как","при","над","под","без","быть","был","была","были",
+                "the","this","that","these","those","with","from","into","about","when","where","which",
+                "what","who","will","would","have","has","been","being","their","there","then","than",
+                "your","they","them","does","using","used","also","such","some","more","most","less",
+                "into","over","under","only","very","many","much","each","both","and","for","are","was",
+                "were","is","not","but","you","can","may","its","our","out","all"));
+        java.util.Set<String> result = new java.util.HashSet<>();
+        String normalized = (text == null ? "" : text).toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{Nd}]+", " ").trim();
+        for (String token : normalized.split("\\s+")) {
+            if (token.length() >= 4 && !stop.contains(token)) result.add(token);
+        }
+        return result;
+    }
+
+    private String researchClip(String value, int max) {
+        String clean = value == null ? "" : value.replaceAll("\\s+", " ").trim();
+        return clean.length() <= max ? clean : clean.substring(0, max);
+    }
+
     public String relationBetween(String a,String b){ return detectRelation(a,b); }
 
     public String add(String text,double conf,boolean auto,String source,String provenance,String relation){

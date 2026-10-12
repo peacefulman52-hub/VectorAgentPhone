@@ -58,13 +58,15 @@ public final class InitiativeWorker extends Worker {
                         && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(context, question)) {
                     FreeWebResearch.Result result = FreeWebResearch.research(question);
                     if (result.report != null && !result.report.trim().isEmpty()) {
+                        ResearchMemoryBridge.Summary bridge = ResearchMemoryBridge.ingest(store, question, result.report);
                         InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
                         // Persist preliminary findings from background research into the same local clusters.
                         ResearchKnowledgeStore.ingestReport(context, title, question, result.report, result.urls);
                         String summary = result.report.length() > 650
                                 ? result.report.substring(0, 650) + "…" : result.report;
                         postMessage(context, "Astra завершила исследование", title + "\n\n" + summary
-                                + "\n\nПолный отчёт и источники сохранены в Astra Initiative.");
+                                + "\n\n" + bridge.toDisplayString()
+                                + "\n\nПолный отчёт и источники сохранены в Astra Initiative. Выводы в памяти остаются предварительными.");
                         InitiativeEngine.scan(context);
                         return Result.success();
                     }

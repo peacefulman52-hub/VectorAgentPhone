@@ -48,3 +48,22 @@ Important mismatch to remember:
 - No paid API requirement for this free research path. Be explicit about limits: local extractive snippets are not LLM-level synthesis and do not prove truth or source independence.
 - Failed/empty research must never be marked completed, promoted to fact, or used to resolve a conflict automatically.
 - Prefer checkpoints and reproducible tests over relying on conversation history alone.
+
+
+## Research-to-memory bridge checkpoint (2026-10-12)
+
+A companion branch, `agent/research-evidence-cluster-bridge`, is being used to add the missing integration without overwriting PR #16's working branch.
+
+Design:
+- Parse only the source-specific `Фрагменты страницы` / `Фрагмент поисковой выдачи` blocks from a successful report.
+- Store each extractive finding as a low-confidence `CANDIDATE` with its source URL, question and timestamp.
+- Attach exact/near duplicate findings as additional evidence to an existing item, without changing that item's status or support score.
+- Add explicit `SIMILAR_TO` / `POSSIBLE_CONTRADICTION_TO` cluster links for related but non-identical findings.
+- Distinct domains are not assumed independent and never auto-promote facts.
+- Manual and scheduled research use the same bridge and report summary counts.
+
+Verification still required:
+1. Ensure GitHub Actions builds the bridge branch successfully.
+2. Exercise one successful research report, one exact duplicate, one related non-identical finding, one possible contradiction, and an empty/error search on a physical Android device.
+3. Verify no research finding changes an existing ACTIVE item to another status and that all stored claims remain traceable to source URLs.
+4. Do not call web research fixed until the real-device network test succeeds.
