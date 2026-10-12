@@ -74,6 +74,13 @@ public final class InitiativeEngine {
     public static synchronized Report scan(Context context) {
         Context app = context.getApplicationContext();
         MemoryStore store = new MemoryStore(app);
+        // Mirror local symbolic hypotheses into the tentative research graph on every scan.
+        // upsertLocalHypothesis is keyed by stable hypothesis ID, so repeated scans update
+        // metadata rather than adding extra support or duplicate observations.
+        for (MemoryStore.Hypothesis hypothesis : store.hypotheses()) {
+            ResearchKnowledgeStore.upsertLocalHypothesis(app, hypothesis.id, hypothesis.rule,
+                    hypothesis.evidence, hypothesis.status, hypothesis.support, hypothesis.version);
+        }
         List<MemoryStore.Item> items = store.all();
         List<Task> tasks = new ArrayList<>();
         int active = 0, candidate = 0, conflict = 0, rejected = 0;
