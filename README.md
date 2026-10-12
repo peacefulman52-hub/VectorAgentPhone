@@ -23,11 +23,14 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
-## v3.6.3 — More resilient free initiative research
+## v3.6.4 — Cautious findings and similarity clusters
 
 - An opt-in Android WorkManager cycle stores and notifies about the next useful task.
 - A persistent starter programme includes seven topics: chat/session continuity, agent loops, Android background limits, evidence quality, agent evaluation, measurable human-positive behavior, and phone-automation safety.
 - The Initiative screen lists goals and progress, accepts custom questions, runs a research task on demand, and saves reports plus source URLs.
+- Each usable excerpt becomes a separate **PRELIMINARY** observation with source URL, research question, timestamp, and deliberately low heuristic confidence (0.25). Similar-but-not-identical statements are attached to a shared topical cluster without being merged into one claim.
+- Likely numeric or negation-based contradictions are marked for review. These observations remain outside factual MemoryStore: they do not auto-promote facts or resolve conflicts.
+- Research reports with no usable extracted source text may be saved for diagnosis, but they do not count as progress and do not complete the topic. Daily research uses the same single ingestion path as manual research to avoid duplicate observations.
 - Research reduces long research briefs to compact topic keywords for web search and uses DuckDuckGo HTML/Lite, Bing, and Russian/English Wikipedia as fallback sources when fewer than three results contain snippets. If sources provide only empty links without usable page text or snippets, the research fails transparently and the topic remains incomplete. Provider diagnostics are shown on failure. **No OpenAI API key, paid API plan, or API credit is required.** Normal internet traffic still applies; public sites may rate-limit or change their markup.
 - The phone downloads a limited number of pages and builds an extractive report locally from relevant snippets/sentences. It is not an LLM-generated synthesis and cannot reliably establish source independence or truth; sources must be checked manually.
 - Initiative research sends no local MemoryStore contents to an AI service. Reports are stored separately and never auto-promote facts or resolve conflicts.
