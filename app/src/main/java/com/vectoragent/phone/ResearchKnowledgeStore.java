@@ -154,13 +154,19 @@ public final class ResearchKnowledgeStore {
             } else {
                 clusterId = match.clusterId;
                 similarity = match.score;
-                relation = classifyRelation(text, match.referenceText);
+                relation = "AGENT_PRELIMINARY_CONCLUSION".equals(f.origin)
+                        ? "DERIVED_FROM_OBSERVATION"
+                        : classifyRelation(text, match.referenceText);
             }
 
             String referenceId = match == null ? "" : match.referenceId;
             String preliminaryConclusion;
             double conclusionConfidence;
-            if ("POSSIBLE_CONTRADICTION_OR_CONDITION".equals(relation)) {
+            if ("AGENT_PRELIMINARY_CONCLUSION".equals(f.origin) && match != null) {
+                preliminaryConclusion = "Эта осторожная сводка выведена из исходного наблюдения "
+                        + referenceId + "; она не является независимым подтверждением.";
+                conclusionConfidence = 0.15;
+            } else if ("POSSIBLE_CONTRADICTION_OR_CONDITION".equals(relation)) {
                 preliminaryConclusion = "Возможно противоречие или различие условий с наблюдением "
                         + referenceId + ". Нужно сверить даты, определения и контекст; это не автоматическое опровержение.";
                 conclusionConfidence = 0.20;
