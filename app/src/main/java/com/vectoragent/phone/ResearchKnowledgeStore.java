@@ -124,7 +124,7 @@ public final class ResearchKnowledgeStore {
                         && url.equals(old.optString("sourceUrl"))
                         && f.origin.equals(old.optString("origin", "FREE_WEB_EXTRACT"))
                         && (!"AGENT_PRELIMINARY_CONCLUSION".equals(f.origin)
-                            || safeQuestion(question).equals(old.optString("researchQuestion")))) {
+                            || (question == null ? "" : question.trim()).equals(old.optString("researchQuestion")))) {
                     old.put("repeatCount", old.optInt("repeatCount", 1) + 1);
                     old.put("lastSeenAt", now);
                     JSONArray priorEvidence = old.optJSONArray("evidenceUrls");
