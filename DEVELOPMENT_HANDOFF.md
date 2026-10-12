@@ -6,14 +6,14 @@ This file is the durable handoff for work that must survive conversation limits.
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Harden free autonomous web research and initiative loop (v3.6.3)"
+- Active work: PR #16, "Harden free autonomous web research and initiative loop (v3.6.4)"
 - PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
 - Working branch: `agent/initiative-loop-1`
-- App version being built: `3.6.3`, `versionCode 363` so it can upgrade `3.6.2`.
-- Latest source commit at checkpoint creation: `6d6a510da9af3b92206409ea7d6435884a7b729c`.
-- CI run #204 is in progress at checkpoint creation: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38261684143
-- Last confirmed successful build before the latest hardening was run #202, an Actions artifact from the PR branch, not a published v3.6.2 release.
-- **The new search code has not been verified on the physical phone. Do not call the issue fixed until a real-device test succeeds.**
+- App version: `3.6.4`, `versionCode 364` so it can upgrade `3.6.3`/earlier installs.
+- Code changes now include compact search queries, provider fallback, an evidence-aware persistent research store, and a UI panel showing topical clusters.
+- Latest known code commit when this checkpoint was written: `da29771f6c0aa2b8bd1899fb4ff01fbd3272920f`; README update committed immediately afterward.
+- CI run #224 for the worker update was in progress at checkpoint creation: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38262947839. Run #223 had succeeded: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38262887068.
+- **The new build has not been verified on the physical phone. Do not call web research fixed until a real-device test succeeds.**
 
 ## Latest bug and code changes
 
@@ -21,10 +21,14 @@ The user installed/tested the free web-research build and reported: "Прове�
 
 Changes committed to PR #16:
 1. Convert the long agenda brief into a compact keyword query before calling public search providers.
-2. Decide whether to query fallback providers based on the count of hits with usable snippets, not just the number of parsed links.
-3. Do not save/complete a research topic when the only results are empty links and no readable page text or nonempty snippets were extracted.
-4. Keep diagnostics from the attempted providers in failure messages.
-5. Bump version to 3.6.3 / versionCode 363; update artifact/release labels and README.
+2. Use fallback providers when there are too few results with usable snippets.
+3. Keep provider diagnostics visible on search failure.
+4. Save every extractable source statement as a separate `PRELIMINARY` observation with URL, source domain, question, time, and heuristic confidence 0.25.
+5. Cluster similar-but-not-identical observations as separate members. Numeric/negation variants can be labelled `POSSIBLE_CONTRADICTION_OR_CONDITION`; clustering never proves truth or merges claims.
+6. `ResearchKnowledgeStore` is the only ingestion path. `InitiativeResearchAgenda.saveResult` invokes it exactly once; Activity and Worker must not call `ingestReport` again directly.
+7. A report with no usable extracted finding can be saved as a diagnostic, but has observation count zero and cannot mark the topic complete or suppress future research.
+8. The Initiative UI has a visible panel for accumulated preliminary clusters.
+9. App version is now 3.6.4 / versionCode 364; update artifact/release metadata and README.
 
 Important mismatch to remember:
 - The new branch's failure message should start with "Бесплатное веб-исследование не удалось:" and include provider diagnostics such as DDG HTML, DDG Lite, Bing, Wikipedia RU, Wikipedia EN.
@@ -33,10 +37,11 @@ Important mismatch to remember:
 ## Next actions
 
 1. Check the latest GitHub Actions run after commit `6d6a510...`; confirm both the build and artifact upload succeeded.
-2. Download `VectorAgentPhone-3.6.3-apk` from that exact workflow run, not the Releases page. The PR is still open and has not been merged.
-3. Install over 3.6.2 and test the same Initiative question on the phone.
-4. Record the exact status/error and provider diagnostics. If all sources report HTTP/network errors, investigate the phone's network/VPN/filtering. If providers return zero parsed results with HTTP 200, inspect parser/markup handling. Do not make another blind source-parser patch without this distinction.
-5. Only after device verification decide whether PR #16 is ready to merge and publish a release.
+2. Download `VectorAgentPhone-3.6.4-apk` from the newest successful Actions run on the PR branch, not from an older artifact or Releases page.
+3. Install over the previous version and repeat the same Initiative question on the phone.
+4. Confirm both behaviours: (a) a usable report appears and the task advances; (b) preliminary observations appear in the cluster panel with URL/source attribution, and a similar-but-not-identical later statement joins the cluster as a separate member.
+5. If no observations are extracted, confirm the task remains incomplete. Record the exact diagnostics. If all providers show network errors, investigate phone network/VPN/filtering; if providers return HTTP 200 with zero parsed results, inspect parser markup.
+6. Only after physical-device verification decide whether PR #16 is ready to merge and publish a release.
 
 ## Long-term project goals (do not lose)
 
@@ -47,4 +52,7 @@ Important mismatch to remember:
 - Persist research reports, source URLs, experiment cycles, and project decisions across app launches and chat sessions.
 - No paid API requirement for this free research path. Be explicit about limits: local extractive snippets are not LLM-level synthesis and do not prove truth or source independence.
 - Failed/empty research must never be marked completed, promoted to fact, or used to resolve a conflict automatically.
+- Keep weak research observations: `PRELIMINARY` is the intended state, not a failure. Prefer a low confidence plus provenance over discarding a plausible clue.
+- Clusters organize topic similarity, not truth. Similar claims remain separate records, and potential numeric/negation contradictions remain reviewable.
+- Avoid duplicate ingestion: all manual and background callers must use `InitiativeResearchAgenda.saveResult` as the sole gateway to `ResearchKnowledgeStore`.
 - Prefer checkpoints and reproducible tests over relying on conversation history alone.
