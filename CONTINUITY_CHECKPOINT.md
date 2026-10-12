@@ -7,7 +7,7 @@
 
 - Repository: https://github.com/peacefulman52-hub/VectorAgentPhone
 - Active PR #16: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
-- Title: “Add persistent autonomous initiative loop and research agenda”
+- Title: “Add persistent initiative loop and starter research agenda”
 - Branch: `agent/initiative-loop-1`
 - Latest PR head: `ede81115cb823fbff5b89554d90752aa241e7ed5`
 - PR status: **open, not merged**.
@@ -21,7 +21,7 @@
 ## What PR #16 now adds
 
 - `InitiativeEngine.java`: examines MemoryStore, prioritizes unresolved conflicts/candidates/hypotheses and falls back to the prepared research agenda when local memory has no open task.
-- `InitiativeResearchAgenda.java`: persistent seven-topic starter programme, custom questions, progress state and a bounded report/URL history. Completed identical questions are skipped to avoid repeatedly spending API quota.
+- `InitiativeResearchAgenda.java`: persistent seven-topic starter research programme, custom questions, progress state and a bounded report/URL history. Completed identical questions are skipped to avoid repeatedly spending API quota.
 - `OpenAIWebTeacher.java`: initiative-specific `researchQuestion` path uses OpenAI Responses API with the `web_search` tool and model `gpt-5.5`. This path sends the selected question, not the full local fact memory. The legacy teacher method remains separate.
 - `InitiativeActivity.java`: shows the next concrete question, the agenda and progress, allows adding a custom question, can start one research now, shows saved reports and clickable source URLs, and explicitly describes API usage.
 - `InitiativeScheduler.java` / `InitiativeWorker.java`: user opt-in for daily background research (one task per scheduled run) and notifications. Requires a saved OpenAI API key; consumes API quota. It does not mutate fact memory or run browser/phone commands. Disable turns off the daily consent flag.
