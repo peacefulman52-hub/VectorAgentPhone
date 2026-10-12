@@ -356,6 +356,45 @@ public class ResearchKnowledgeStoreTest {
         assertEquals(0, hypothesis.getJSONArray("evidenceUrls").length());
     }
 
+    @Test
+    public void localSymbolicHypothesisUpsertIsIdempotentAndNeverInventsSourceUrls() throws Exception {
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(context,
+                "h-local-7", "Повторяющийся переход A к B при условии C",
+                "Наблюдалось в двух локальных парах", "CANDIDATE", 2, "1"));
+
+        JSONArray firstRows = observations();
+        assertEquals(1, firstRows.length());
+        JSONObject first = firstRows.getJSONObject(0);
+        String id = first.getString("id");
+        String clusterId = first.getString("clusterId");
+        assertEquals("local-hypothesis:h-local-7", first.getString("basisHypothesisId"));
+        assertEquals("LOCAL_SYMBOLIC_HYPOTHESIS", first.getString("origin"));
+        assertEquals("", first.getString("sourceUrl"));
+        assertEquals(0, first.getJSONArray("evidenceUrls").length());
+        assertEquals(1, first.getInt("repeatCount"));
+        assertTrue(first.getString("basis").contains("Повторяющийся переход A к B"));
+        assertTrue(first.getString("basis").contains("status=CANDIDATE"));
+
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(context,
+                "h-local-7", "Уточнённый переход A к B при условии C",
+                "Добавлено ещё одно локальное наблюдение", "ACTIVE", 3, "2"));
+
+        JSONArray updatedRows = observations();
+        assertEquals("Повторный scan должен обновить запись, а не создать новую.", 1, updatedRows.length());
+        JSONObject updated = updatedRows.getJSONObject(0);
+        assertEquals(id, updated.getString("id"));
+        assertEquals(clusterId, updated.getString("clusterId"));
+        assertEquals("local-hypothesis:h-local-7", updated.getString("basisHypothesisId"));
+        assertTrue(updated.getString("text").contains("Уточнённый переход A к B"));
+        assertEquals("ACTIVE", updated.getString("hypothesisStatus"));
+        assertEquals(3, updated.getInt("hypothesisSupport"));
+        assertEquals("2", updated.getString("hypothesisVersion"));
+        assertEquals(1, updated.getInt("repeatCount"));
+        assertEquals("", updated.getString("sourceUrl"));
+        assertEquals(0, updated.getJSONArray("evidenceUrls").length());
+        assertTrue(ResearchKnowledgeStore.summaryText(context).contains("LOCAL_SYMBOLIC_HYPOTHESIS") == false);
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
