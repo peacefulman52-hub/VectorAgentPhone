@@ -24,11 +24,11 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-3.6.1-apk
+          name: VectorAgentPhone-3.6.2-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.6.1 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.6.1" --notes "Adds keyless free web research, seven starter research topics, persistent initiative scheduling and source-linked extractive reports without automatic fact promotion or external actions." || true
+          gh release create v3.6.2 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.6.2" --notes "Hardens keyless free web research with DuckDuckGo HTML/Lite, Bing, and Russian/English Wikipedia fallback sources; records provider diagnostics on failure. No paid API key is required." || true
