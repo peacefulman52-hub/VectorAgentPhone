@@ -392,7 +392,7 @@ public class ResearchKnowledgeStoreTest {
         assertEquals(1, updated.getInt("repeatCount"));
         assertEquals("", updated.getString("sourceUrl"));
         assertEquals(0, updated.getJSONArray("evidenceUrls").length());
-        assertTrue(ResearchKnowledgeStore.summaryText(context).contains("LOCAL_SYMBOLIC_HYPOTHESIS") == false);
+        assertTrue(ResearchKnowledgeStore.summaryText(context).contains("Локальная гипотеза агента"));
     }
 
     private String oneSourceReport(String url, String statement) {
