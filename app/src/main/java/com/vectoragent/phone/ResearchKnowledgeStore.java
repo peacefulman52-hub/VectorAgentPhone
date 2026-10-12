@@ -381,6 +381,26 @@ public final class ResearchKnowledgeStore {
                 + "следующий шаг — сверить первоисточник, дату, определения и условия.";
     }
 
+    /**
+     * Returns report-derived source URLs for a takeaway, placing the exact source of
+     * the quoted first snippet first. This prevents an out-of-order caller URL array
+     * from misattributing the takeaway while preserving the other report evidence links.
+     */
+    public static synchronized String[] draftConservativeConclusionEvidenceUrls(
+            String report, String[] urls) {
+        List<Finding> findings = extractFindings(report, urls);
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        if (!findings.isEmpty()) {
+            String primary = safeUrl(findings.get(0).url);
+            if (!primary.isEmpty()) ordered.add(primary);
+        }
+        for (Finding finding : findings) {
+            String url = safeUrl(finding.url);
+            if (!url.isEmpty()) ordered.add(url);
+        }
+        return ordered.toArray(new String[0]);
+    }
+
     private static List<Finding> extractFindings(String report, String[] urls) {
         List<Finding> out = new ArrayList<>();
         String currentUrl = "";
