@@ -29,7 +29,7 @@ public class ResearchKnowledgeStoreTest {
         context = RuntimeEnvironment.getApplication();
         context.getSharedPreferences("vector_research_knowledge", Context.MODE_PRIVATE)
                 .edit().clear().commit();
-        context.getSharedPreferences("vector_research_agenda", Context.MODE_PRIVATE)
+        context.getSharedPreferences("vector_initiative_agenda", Context.MODE_PRIVATE)
                 .edit().clear().commit();
         context.getSharedPreferences("vector_research_conclusions", Context.MODE_PRIVATE)
                 .edit().clear().commit();
@@ -136,6 +136,43 @@ public class ResearchKnowledgeStoreTest {
         assertEquals("POSSIBLE_CONTRADICTION_OR_CONDITION", b.getString("relationToCluster"));
         assertTrue(b.getString("preliminaryConclusion").contains("Возможно противоречие"));
         assertEquals(a.getString("id"), b.getString("basisObservationId"));
+    }
+
+    @Test
+    public void zeroUsableFindingsDoNotCompleteTheResearchTopic() throws Exception {
+        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\\n"
+                + "1. A page without URL\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n";
+        int count = InitiativeResearchAgenda.saveResult(context, "continuity", "Преемственность",
+                "Find ways to preserve context", report,
+                new String[]{"https://first.example/page", "https://second.example/page"});
+
+        assertEquals(0, count);
+        assertEquals(0, observations().length());
+        InitiativeResearchAgenda.Topic topic = InitiativeResearchAgenda.get(context, "continuity");
+        assertNotNull(topic);
+        assertFalse(topic.completed);
+        assertTrue(InitiativeResearchAgenda.latestResultText(context).contains("незаверш"));
+    }
+
+    @Test
+    public void oppositeNegationIsFlaggedForReview() throws Exception {
+        String first = oneSourceReport("https://first.example/system",
+                "The system supports local clustering for research observations.");
+        String second = oneSourceReport("https://second.example/system",
+                "The system does not support local clustering for research observations.");
+        ResearchKnowledgeStore.ingestReport(context, "Local clustering", "Question", first,
+                new String[]{"https://first.example/system"});
+        ResearchKnowledgeStore.ingestReport(context, "Local clustering", "Question", second,
+                new String[]{"https://second.example/system"});
+
+        JSONArray observations = observations();
+        assertEquals(2, observations.length());
+        assertEquals("POSSIBLE_CONTRADICTION_OR_CONDITION",
+                observations.getJSONObject(1).getString("relationToCluster"));
+        assertEquals(observations.getJSONObject(0).getString("id"),
+                observations.getJSONObject(1).getString("basisObservationId"));
     }
 
     @Test
