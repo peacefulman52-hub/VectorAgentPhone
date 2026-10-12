@@ -1,73 +1,76 @@
 # VectorAgentPhone / Astra — Continuity Checkpoint
 
 **Last verified:** 2026-10-12  
-**Purpose:** durable handoff so implementation survives chat limits. Re-check live repository state before changing code.
+**Purpose:** durable handoff so progress survives chat/file limits. Before changing code, re-check live GitHub status.
 
 ## Current verified state
 
 - Repository: https://github.com/peacefulman52-hub/VectorAgentPhone
 - Active PR #16: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
-- Title: “Add persistent initiative loop and starter research agenda”
+- Title: “Add free autonomous web research and initiative loop (v3.6.1)”
 - Branch: `agent/initiative-loop-1`
-- Latest PR head: `ede81115cb823fbff5b89554d90752aa241e7ed5`
-- PR status: **open, not merged**.
-- Latest CI run #182: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38255633151
-- CI outcome: **success**. GitHub Actions completed `assembleDebug` and uploaded the artifact. Publishing a release was skipped as expected for a PR run.
-- Artifact name: `VectorAgentPhone-3.6.0-apk`, artifact ID `11750566071`.
-- Artifact ZIP SHA-256: `206c35645fbf5a9aaf1f7048f0d553e52289d6874c51c09a408e0ba9e95e4786` (2,922,751 bytes).
-- Extracted APK in this session: `/mnt/data/VectorAgentPhone-3.6.0-research.apk`; SHA-256 `abee77f38ce1b18856d189aaf27af4faaac81fc784188fa3eb1097f33e9f9b9b` (3,005,691 bytes).
-- **Compile/build is verified; installation and runtime behavior on a physical Android device are not yet verified.**
+- Current head SHA: `244249f51954e59340e6eae886622c6d4a64641c`
+- PR: **open, not merged**.
+- CI run #197: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38257997151 — **success**; debug APK build and artifact upload succeeded. Release publishing was correctly skipped for a PR build.
+- Artifact name: `VectorAgentPhone-3.6.1-apk`, ID `11751401088`.
+- Artifact ZIP SHA-256: `90c9b0f881695c9a2395d0afc1b47e9ef779994e2002ba4ee082a91f95b71d3b` (2,930,150 bytes).
+- Extracted APK: `VectorAgentPhone-3.6.1-free-research.apk`, SHA-256 `b43b1639ff751d981896938c4935d2c41617f017cfac4355ec5f7f4fb37bb09e` (3,013,295 bytes).
+- App version: `3.6.1`, versionCode `361`.
+- **Build is verified. Physical device installation, live network search, and runtime behavior have not been verified yet.**
 
-## What PR #16 now adds
+## Free research implementation
 
-- `InitiativeEngine.java`: examines MemoryStore, prioritizes unresolved conflicts/candidates/hypotheses and falls back to the prepared research agenda when local memory has no open task.
-- `InitiativeResearchAgenda.java`: persistent seven-topic starter research programme, custom questions, progress state and a bounded report/URL history. Completed identical questions are skipped to avoid repeatedly spending API quota.
-- `OpenAIWebTeacher.java`: initiative-specific `researchQuestion` path uses OpenAI Responses API with the `web_search` tool and model `gpt-5.5`. This path sends the selected question, not the full local fact memory. The legacy teacher method remains separate.
-- `InitiativeActivity.java`: shows the next concrete question, the agenda and progress, allows adding a custom question, can start one research now, shows saved reports and clickable source URLs, and explicitly describes API usage.
-- `InitiativeScheduler.java` / `InitiativeWorker.java`: user opt-in for daily background research (one task per scheduled run) and notifications. Requires a saved OpenAI API key; consumes API quota. It does not mutate fact memory or run browser/phone commands. Disable turns off the daily consent flag.
-- Main screen entry point, WorkManager dependency, Gradle versionCode 360/versionName 3.6.0, manifest, workflow and README were updated. Release publishing runs only on a push to `main`, not on a pull request.
+- `FreeWebResearch.java`: no OpenAI API call or API key. Uses DuckDuckGo public HTML search, Wikipedia/MediaWiki public search as fallback, retrieves a small set of pages and locally extracts relevant sentences/snippets. Creates a transparent report with source URLs and limitations.
+- `InitiativeResearchAgenda.java`: persistent seven-topic starter programme, custom questions, progress state and report/source URL history.
+- `InitiativeEngine.java`: prioritizes unresolved conflict/candidate/hypothesis tasks, then selects the next open agenda topic; records the selected initiative across launches.
+- `InitiativeActivity.java`: shows next task and progress; supports manual research, custom questions, persisted report/URLs and opt-in daily mode.
+- `InitiativeWorker.java` and `InitiativeScheduler.java`: opt-in periodic keyless research; up to one task per scheduled cycle. Android WorkManager is best-effort and may delay the run.
+- Main screen's built-in web researcher was switched to the same free search path. Reports stay in context/history and are not inserted as factual MemoryStore items.
+- Research path does not send local MemoryStore contents to a model service.
+- App metadata/workflow updated to 3.6.1. GitHub workflow skips publishing a release on PRs.
 
-## Starter research agenda
+## Starter research programme
 
-1. Continuity across chats and sessions: checkpoints, event logs and retrieval.
-2. A useful autonomous agent loop: choose, plan, act, verify, learn.
-3. Android background execution limits, WorkManager and notifications.
-4. Reliable web research: source independence, claim-level citations and contradictions.
-5. Measurable agent autonomy and long-horizon evaluation.
-6. Human-positive behavioral rules: honesty, humility, curiosity, care and accountability.
-7. Safety controls for browser/phone automation.
+1. Chat/session continuity: checkpoints, event logs and retrieval.
+2. Autonomous agent cycle: choose goal, plan, act, verify, learn.
+3. Android background execution, WorkManager and notifications.
+4. Web evidence quality: primary sources, source independence and contradictions.
+5. Measuring agency and transfer on unfamiliar tasks.
+6. Operationalizing honesty, humility, curiosity, care and accountability.
+7. Safety for phone/browser automation.
 
-For a new install, the first initiative should be “Преемственность между чатами”. More topics are queued; users can add custom questions after the starter agenda.
+For a new install, the first agenda item is chat/session continuity. Users can add custom questions.
 
-## Required first device test
+## Important limitations
 
-1. Install `VectorAgentPhone-3.6.0-research.apk`.
-2. In VECTOR → Settings, add a valid OpenAI API key that has API access. A ChatGPT subscription is not the same as API credit.
-3. Open **Самостоятельная инициатива**. Confirm that it shows the next starter topic and all seven research goals, rather than an empty queue.
-4. Press **Исследовать выбранный вопрос сейчас**. Confirm a report is saved, source URLs are visible/clickable, the topic is marked complete, and the next topic becomes selected.
-5. Confirm the initiative research request sends only the selected question, not all local MemoryStore facts. Do not put passwords, tokens or secrets in research questions.
-6. If enabling daily web research, confirm the UI explicitly mentions API quota, notifications permission behavior and the ability to disable. Test the next scheduled execution best-effort; Android may defer periodic work.
-7. Verify that research never automatically promotes facts or resolves conflicts, and that the same successfully researched question is not requested every day.
-8. Fix any device/runtime defect before merging PR #16. Do not call runtime verified until this test is actually performed.
+- Without a large language model, the free report is **extractive**, not a semantic LLM synthesis. It selects search snippets and sentences based on query terms. It cannot reliably determine whether sources are truly independent or whether a claim is true. Reports explicitly disclose this.
+- DuckDuckGo's HTML markup or public websites may change, rate-limit or block automated requests. Wikipedia/MediaWiki search is a fallback, not complete general-web coverage.
+- No paid API is required for this path; ordinary internet traffic still applies.
+- A successful build does not prove the live search works on the phone.
+- PR #16 remains unmerged. Do not call it a release.
 
-## Limitations to keep visible
+## Next device test
 
-- The seven-topic backlog and web researcher create useful starting work; they are not proof of general autonomous intelligence or consciousness.
-- Daily execution is opt-in and best-effort. ChatGPT itself still does not gain a persistent process that thinks between chats or starts a new ChatGPT conversation on its own.
-- API research may use paid API quota. The initiative research path only sends its question, but the separate legacy IИ-учитель path can still include a bounded local-memory summary.
-- PR #16 remains unmerged as of the last live check.
+1. Install `VectorAgentPhone-3.6.1-free-research.apk` (versionCode 361 permits upgrade from 3.6.0).
+2. Open **Самостоятельная инициатива**. Verify it lists seven topics and selects the first open one.
+3. Run **Исследовать выбранный вопрос сейчас** without any API key configured.
+4. Confirm source URLs and extracted snippets appear and save persistently; confirm the completed item is marked done and the next agenda topic is selected.
+5. Turn airplane mode on or simulate a blocked search. Confirm failure is visible and the agenda topic is not marked complete.
+6. Enable daily research, verify it is opt-in, disable it, and do not assume exact execution timing.
+7. Verify the report never auto-promotes facts or resolves conflicts. Only then record device/runtime testing as complete.
+8. Fix any issue before merging PR #16.
 
-## Core product requirements
+## Core requirements that must not be lost
 
-- Compare new knowledge with old; discover relations beyond literal text matches.
-- Form hypotheses and test them against observations; learn from acceptance/rejection without silent overwrites.
+- Compare new information with existing knowledge; find relations beyond literal text match.
+- Form and test hypotheses; learn from accepted/rejected evidence without silently overwriting facts.
 - Preserve provenance, conflicts, experiment logs and cycles across restarts and chat handoffs.
-- Separate answer generation from factual MemoryStore writes.
-- Keep the main chat clean and detailed memory/reasoning in separate views.
-- Astra Bridge: bounded, auditable OPEN_URL / CLICK / TYPE / READ_SCREEN / STOP / RESUME; show latest result by default, older logs behind a toggle; preserve the task-level click limit and handle the intended/latest Chrome window.
-- Favor independent evidence, holdout tests and calibrated confidence; avoid toy demos, hard-coded experiments and inflated claims.
-- User wants productive, implemented progress rather than more architectures described in prose.
+- Separate prose generation/research reports from factual MemoryStore writes.
+- Keep main chat clean, memory/reasoning details separate.
+- Astra Bridge: bounded auditable OPEN_URL / CLICK / TYPE / READ_SCREEN / STOP / RESUME; latest result shown first, old logs behind a toggle; respect task-level click cap and intended/latest Chrome window.
+- Prefer independent evidence, holdout tests and calibrated confidence; avoid toy demos, hard-coded experiments and inflated claims.
+- User expects implemented, tested progress rather than another architecture-only plan.
 
-## Behavioral principles for the assistant/project
+## Assistant/project behavioral principles
 
-Demonstrate initiative as observable behavior: identify a useful unsolved problem, choose a concrete next step, test it, record the outcome and update the plan. Apply honesty about uncertainty, intellectual humility, curiosity, care for consequences, accountability for mistakes, and reasoned disagreement. Do not claim human feelings, consciousness, continuous thought between chats, or unsolicited contact unless the capability is actually present.
+Make initiative observable: identify a useful unsolved problem, select a concrete next step, test it, record the outcome and revise the plan. Practice honesty about uncertainty, intellectual humility, curiosity, care for consequences, accountability and reasoned disagreement. Do not claim human feelings, consciousness, continuous thinking between chats or unsolicited contact unless that capability is actually available.
