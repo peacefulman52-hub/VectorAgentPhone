@@ -81,6 +81,30 @@ public class ResearchKnowledgeStoreTest {
     }
 
     @Test
+    public void singleSourceMayUseOneUnambiguousFallbackUrl() throws Exception {
+        String report = "1. One source block\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n";
+        String url = "https://first.example/water";
+        assertEquals(1, ResearchKnowledgeStore.ingestReport(
+                context, "Точка кипения", "Вопрос", report, new String[]{url}));
+        assertEquals(url, observations().getJSONObject(0).getString("sourceUrl"));
+    }
+
+    @Test
+    public void singleUrlIsNotSmearedAcrossSeveralUnlabelledSourceBlocks() throws Exception {
+        String report = "1. First source\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n"
+                + "2. Second source\\n"
+                + "Фрагменты страницы:\\n"
+                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\\n";
+        assertEquals(0, ResearchKnowledgeStore.ingestReport(
+                context, "Точка кипения", "Вопрос", report, new String[]{"https://first.example/water"}));
+        assertEquals(0, observations().length());
+    }
+
+    @Test
     public void repeatedSameSourceObservationIsIdempotentAndKeepsRepeatCount() throws Exception {
         String report = oneSourceReport("https://first.example/water",
                 "Water boils at 100 degrees Celsius at sea-level atmospheric pressure.");
