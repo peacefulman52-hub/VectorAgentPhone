@@ -187,7 +187,7 @@ public final class FreeWebResearch {
     private static String findLiteSnippet(String html, int from) {
         int end = Math.min(html.length(), from + 2200);
         String window = html.substring(from, end);
-        Matcher m = Pattern.compile("(?is)<td[^>]*class=[\\"'][^\\"']*result-snippet[^\\"']*[\\"'][^>]*>(.*?)</td>").matcher(window);
+        Matcher m = Pattern.compile("(?is)<td[^>]*class=[\"'][^\"']*result-snippet[^\"']*[\"'][^>]*>(.*?)</td>").matcher(window);
         if (m.find()) return clean(stripTags(m.group(1)));
         m = Pattern.compile("(?is)<td[^>]*>(.*?)</td>").matcher(window);
         return m.find() ? clean(stripTags(m.group(1))) : "";
@@ -196,7 +196,7 @@ public final class FreeWebResearch {
     private static List<SearchHit> searchBing(String query) throws IOException {
         String html = get("https://www.bing.com/search?q=" + encode(query), MAX_SEARCH_BYTES);
         List<SearchHit> out = new ArrayList<>();
-        Pattern blocks = Pattern.compile("(?is)<li\\b(?=[^>]*class=[\\"'][^\\"']*\\bb_algo\\b)[^>]*>(.*?)</li>");
+        Pattern blocks = Pattern.compile("(?is)<li\\b(?=[^>]*class=[\"'][^\"']*\\bb_algo\\b)[^>]*>(.*?)</li>");
         Matcher block = blocks.matcher(html);
         while (block.find() && out.size() < 10) {
             String body = block.group(1);
