@@ -140,6 +140,16 @@ public final class InitiativeResearchAgenda {
         // Store weak but usable source observations in the knowledge clusters before
         // deciding whether this research task has actually produced anything learnable.
         int observationCount = ResearchKnowledgeStore.ingestReport(context, title, question, report, urls);
+        // Produce one cautious, extractive takeaway when actual source-attributed observations exist.
+        // This derived note is clustered with its basis but never counted as independent evidence.
+        if (observationCount > 0) {
+            String takeaway = ResearchKnowledgeStore.draftConservativeConclusion(title, question, report, urls);
+            if (!takeaway.isEmpty()) {
+                ResearchKnowledgeStore.addPreliminaryConclusion(context, takeaway, title, question,
+                        "Extractive summary of source-attributed snippets; not a verified factual claim.",
+                        urls, 0.15);
+            }
+        }
         SharedPreferences p=prefs(context);
         long now=System.currentTimeMillis();
         JSONArray safeUrls=new JSONArray();
