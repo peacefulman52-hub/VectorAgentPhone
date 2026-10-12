@@ -7,6 +7,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
     defaultConfig {
         applicationId 'com.vectoragent.phone'
         minSdk 26
@@ -18,4 +21,7 @@ android {
 
 dependencies {
     implementation 'androidx.work:work-runtime:2.11.2'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
 }
