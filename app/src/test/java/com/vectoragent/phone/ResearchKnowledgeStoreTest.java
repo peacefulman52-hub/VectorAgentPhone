@@ -82,9 +82,9 @@ public class ResearchKnowledgeStoreTest {
 
     @Test
     public void singleSourceMayUseOneUnambiguousFallbackUrl() throws Exception {
-        String report = "1. One source block\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n";
+        String report = "1. One source block\n"
+                + "Фрагменты страницы:\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\n";
         String url = "https://first.example/water";
         assertEquals(1, ResearchKnowledgeStore.ingestReport(
                 context, "Точка кипения", "Вопрос", report, new String[]{url}));
@@ -93,12 +93,12 @@ public class ResearchKnowledgeStoreTest {
 
     @Test
     public void singleUrlIsNotSmearedAcrossSeveralUnlabelledSourceBlocks() throws Exception {
-        String report = "1. First source\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n"
-                + "2. Second source\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\\n";
+        String report = "1. First source\n"
+                + "Фрагменты страницы:\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\n"
+                + "2. Second source\n"
+                + "Фрагменты страницы:\n"
+                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\n";
         assertEquals(0, ResearchKnowledgeStore.ingestReport(
                 context, "Точка кипения", "Вопрос", report, new String[]{"https://first.example/water"}));
         assertEquals(0, observations().length());
@@ -164,10 +164,10 @@ public class ResearchKnowledgeStoreTest {
 
     @Test
     public void zeroUsableFindingsDoNotCompleteTheResearchTopic() throws Exception {
-        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\\n"
-                + "1. A page without URL\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n";
+        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
+                + "1. A page without URL\n"
+                + "Фрагменты страницы:\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\n";
         int count = InitiativeResearchAgenda.saveResult(context, "continuity", "Преемственность",
                 "Find ways to preserve context", report,
                 new String[]{"https://first.example/page", "https://second.example/page"});
@@ -231,21 +231,21 @@ public class ResearchKnowledgeStoreTest {
     public void takeawayUsesQuotedSnippetSourceEvenWhenCallerUrlArrayIsReversed() throws Exception {
         String firstUrl = "https://first.example/water";
         String secondUrl = "https://second.example/boiling";
-        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\\n"
-                + "Вопрос: точка кипения воды\\n"
-                + "Метод: extractive\\n\\n"
-                + "1. Первый источник\\n"
-                + "Домен: first.example\\n"
-                + "URL: " + firstUrl + "\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\\n\\n"
-                + "2. Второй источник\\n"
-                + "Домен: second.example\\n"
-                + "URL: " + secondUrl + "\\n"
-                + "Фрагменты страницы:\\n"
-                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\\n\\n"
-                + "Что пока НЕ установлено автоматически:\\n"
-                + "• The sources have not been independently verified.\\n"
+        String report = "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
+                + "Вопрос: точка кипения воды\n"
+                + "Метод: extractive\n\n"
+                + "1. Первый источник\n"
+                + "Домен: first.example\n"
+                + "URL: " + firstUrl + "\n"
+                + "Фрагменты страницы:\n"
+                + "• Water boils at 100 degrees Celsius at sea-level atmospheric pressure.\n\n"
+                + "2. Второй источник\n"
+                + "Домен: second.example\n"
+                + "URL: " + secondUrl + "\n"
+                + "Фрагменты страницы:\n"
+                + "• Water reaches boiling at 100 degrees Celsius near sea-level atmospheric pressure.\n\n"
+                + "Что пока НЕ установлено автоматически:\n"
+                + "• The sources have not been independently verified.\n"
                 + "Следующий шаг: inspect the original sources.";
 
         assertEquals(2, InitiativeResearchAgenda.saveResult(context, "", "Точка кипения",
