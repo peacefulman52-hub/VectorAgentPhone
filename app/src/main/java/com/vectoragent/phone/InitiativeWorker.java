@@ -59,6 +59,8 @@ public final class InitiativeWorker extends Worker {
                     FreeWebResearch.Result result = FreeWebResearch.research(question);
                     if (result.report != null && !result.report.trim().isEmpty()) {
                         InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
+                        // Persist preliminary findings from background research into the same local clusters.
+                        ResearchKnowledgeStore.ingestReport(context, title, question, result.report, result.urls);
                         String summary = result.report.length() > 650
                                 ? result.report.substring(0, 650) + "…" : result.report;
                         postMessage(context, "Astra завершила исследование", title + "\n\n" + summary
