@@ -20,14 +20,14 @@ public final class InitiativeScheduler {
         WorkManager.getInstance(app).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request);
         app.getSharedPreferences("vector_initiative", Context.MODE_PRIVATE)
-                .edit().putBoolean("enabled", true).apply();
+                .edit().putBoolean("enabled", true).putBoolean("daily_research_consent", true).apply();
     }
 
     public static void disable(Context context) {
         Context app = context.getApplicationContext();
         WorkManager.getInstance(app).cancelUniqueWork(UNIQUE_PERIODIC);
         app.getSharedPreferences("vector_initiative", Context.MODE_PRIVATE)
-                .edit().putBoolean("enabled", false).apply();
+                .edit().putBoolean("enabled", false).putBoolean("daily_research_consent", false).apply();
     }
 
     public static void runNow(Context context) {
