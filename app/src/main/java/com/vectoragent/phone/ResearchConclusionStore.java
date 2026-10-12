@@ -92,6 +92,7 @@ public final class ResearchConclusionStore {
         List<Observation> observations = extractObservations(report, fallbackUrls);
 
         for (Observation observation : observations) {
+          try {
             String text = clean(observation.text);
             String normalized = normalizeText(text);
             if (text.length() < 45 || text.length() > 550 || usefulTokens(text).size() < 3) continue;
@@ -179,11 +180,27 @@ public final class ResearchConclusionStore {
             if (isHttp(observation.url)) sourceUrls.put(observation.url);
             claim.put("sourceUrls", sourceUrls);
             claim.put("sourceDomains", domains(sourceUrls));
+            JSONObject targetCluster = findCluster(clusters, clusterId);
+            if (targetCluster != null) {
+                JSONArray members = targetCluster.optJSONArray("memberIds");
+                if (members == null) members = new JSONArray();
+                boolean alreadyListed = false;
+                for (int i = 0; i < members.length(); i++) {
+                    if (id.equals(members.optString(i))) { alreadyListed = true; break; }
+                }
+                if (!alreadyListed) members.put(id);
+                targetCluster.put("memberIds", members);
+                targetCluster.put("claimCount", members.length());
+                targetCluster.put("updatedAt", now);
+            }
             claims.put(claim);
             summary.newConclusions++;
+          } catch (Exception ignored) {
+              // One malformed sentence must not discard other observations from the report.
+          }
         }
 
-        pruneClaims(claims, clusters, relations);
+        try { pruneClaims(claims, clusters, relations); } catch (Exception ignored) {}
         prefs.edit()
                 .putString(CLAIMS, claims.toString())
                 .putString(CLUSTERS, clusters.toString())
