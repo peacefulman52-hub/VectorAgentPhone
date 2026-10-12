@@ -23,7 +23,7 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
-## v3.6.0 — Free Initiative Research
+## v3.6.1 — Free Initiative Research
 
 - An opt-in Android WorkManager cycle stores and notifies about the next useful task.
 - A persistent starter programme includes seven topics: chat/session continuity, agent loops, Android background limits, evidence quality, agent evaluation, measurable human-positive behavior, and phone-automation safety.
