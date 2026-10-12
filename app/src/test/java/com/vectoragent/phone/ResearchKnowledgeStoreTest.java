@@ -489,6 +489,40 @@ public class ResearchKnowledgeStoreTest {
         assertEquals("", updated.getString("sourceUrl"));
         assertEquals(0, updated.getJSONArray("evidenceUrls").length());
         assertEquals(recordsBeforeUpsert, observations().length());
+
+        JSONArray clusters = new JSONArray(preferences().getString("clusters", "[]"));
+        JSONObject targetCluster = null;
+        JSONObject orphanCluster = null;
+        for (int i = 0; i < clusters.length(); i++) {
+            JSONObject cluster = clusters.getJSONObject(i);
+            if (raw.getString("clusterId").equals(cluster.getString("id"))) targetCluster = cluster;
+            if (localOnlyClusterId.equals(cluster.getString("id"))) orphanCluster = cluster;
+        }
+        assertNotNull("Hypothesis should be present in source cluster.", targetCluster);
+        assertEquals("Empty former local-only cluster must be pruned.", null, orphanCluster);
+        assertEquals(1, occurrences(targetCluster.getJSONArray("members"), updated.getString("id")));
+
+        assertEquals(1, ResearchKnowledgeStore.upsertLocalHypothesis(
+                context, hypothesisId, statement, "local symbolic pattern", "ACTIVE", 2, "2"));
+        JSONObject repeated = findLocalHypothesis(hypothesisId);
+        assertNotNull(repeated);
+        assertEquals(updated.getString("id"), repeated.getString("id"));
+        assertEquals(recordsBeforeUpsert, observations().length());
+
+        JSONArray clustersAfterRepeat = new JSONArray(preferences().getString("clusters", "[]"));
+        JSONObject repeatedTarget = null;
+        for (int i = 0; i < clustersAfterRepeat.length(); i++) {
+            JSONObject cluster = clustersAfterRepeat.getJSONObject(i);
+            if (raw.getString("clusterId").equals(cluster.getString("id"))) repeatedTarget = cluster;
+        }
+        assertNotNull(repeatedTarget);
+        assertEquals(1, occurrences(repeatedTarget.getJSONArray("members"), repeated.getString("id")));
+    }
+
+    private int occurrences(JSONArray values, String expected) {
+        int count = 0;
+        for (int i = 0; i < values.length(); i++) if (expected.equals(values.optString(i))) count++;
+        return count;
     }
 
     private String oneSourceReport(String url, String statement) {
