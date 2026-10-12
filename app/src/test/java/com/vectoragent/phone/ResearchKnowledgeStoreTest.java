@@ -395,6 +395,59 @@ public class ResearchKnowledgeStoreTest {
         assertTrue(ResearchKnowledgeStore.summaryText(context).contains("Локальная гипотеза агента"));
     }
 
+    @Test
+    public void initiativeScanUpsertsLocalHypothesisWithoutFakeEvidenceOrRepeatedSupport() throws Exception {
+        context.getSharedPreferences("vector_memory", Context.MODE_PRIVATE).edit().clear().commit();
+        MemoryStore memory = new MemoryStore(context);
+        memory.add("zorbaxis readings are high today", 0.35, false, "TEST", "controlled pattern", "");
+        memory.add("zorbaxis readings are low today", 0.35, false, "TEST", "controlled pattern", "");
+        memory.add("zorbaxis readings are warm today", 0.35, false, "TEST", "controlled pattern", "");
+
+        MemoryStore.Hypothesis hypothesis = null;
+        for (MemoryStore.Hypothesis candidate : memory.hypotheses()) {
+            if (candidate.rule.contains("zorbaxis")) { hypothesis = candidate; break; }
+        }
+        assertNotNull("Repeated one-token differences should produce a local hypothesis.", hypothesis);
+
+        InitiativeEngine.scan(context);
+        JSONObject first = findLocalHypothesis(hypothesis.id);
+        assertNotNull("Initiative scan should upsert the saved local hypothesis.", first);
+        assertEquals("LOCAL_SYMBOLIC_HYPOTHESIS", first.getString("origin"));
+        assertEquals("local-hypothesis:" + hypothesis.id, first.getString("basisHypothesisId"));
+        assertEquals("", first.getString("sourceUrl"));
+        assertEquals(0, first.getJSONArray("evidenceUrls").length());
+        assertTrue(first.getString("basis").contains("no external source URL is asserted"));
+        String observationId = first.getString("id");
+        int observationCount = observations().length();
+        int repeatCount = first.getInt("repeatCount");
+
+        memory.learnHypothesis(hypothesis.id, false);
+        InitiativeEngine.scan(context);
+        JSONObject rejected = findLocalHypothesis(hypothesis.id);
+        assertNotNull(rejected);
+        assertEquals(observationId, rejected.getString("id"));
+        assertEquals("REJECTED", rejected.getString("hypothesisStatus"));
+        assertEquals(observationCount, observations().length());
+        assertEquals(repeatCount, rejected.getInt("repeatCount"));
+
+        InitiativeEngine.scan(context);
+        JSONObject again = findLocalHypothesis(hypothesis.id);
+        assertEquals(observationId, again.getString("id"));
+        assertEquals(observationCount, observations().length());
+        assertEquals(repeatCount, again.getInt("repeatCount"));
+    }
+
+    private JSONObject findLocalHypothesis(String hypothesisId) throws Exception {
+        JSONArray all = observations();
+        String stableId = "local-hypothesis:" + hypothesisId;
+        for (int i = all.length() - 1; i >= 0; i--) {
+            JSONObject item = all.getJSONObject(i);
+            if ("LOCAL_SYMBOLIC_HYPOTHESIS".equals(item.optString("origin"))
+                    && stableId.equals(item.optString("basisHypothesisId"))) return item;
+        }
+        return null;
+    }
+
     private String oneSourceReport(String url, String statement) {
         String host = url.replaceFirst("^https?://", "").split("/")[0];
         return "БЕСПЛАТНОЕ ВЕБ-ИССЛЕДОВАНИЕ\n"
