@@ -163,7 +163,12 @@ public final class FreeWebResearch {
         String url = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch="
                 + encode(query) + "&format=json&utf8=1&srlimit=5";
         String json = get(url, 250_000);
-        JSONObject root = new JSONObject(json);
+        JSONObject root;
+        try {
+            root = new JSONObject(json);
+        } catch (org.json.JSONException e) {
+            throw new IOException("Не удалось разобрать ответ бесплатного поиска Wikipedia", e);
+        }
         JSONObject queryObj = root.optJSONObject("query");
         JSONArray arr = queryObj == null ? null : queryObj.optJSONArray("search");
         if (arr == null) return;
