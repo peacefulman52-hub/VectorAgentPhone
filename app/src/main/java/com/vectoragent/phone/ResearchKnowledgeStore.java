@@ -118,6 +118,8 @@ public final class ResearchKnowledgeStore {
             observation.put("clusterId", clusterId);
             observation.put("relationToCluster", relation);
             observation.put("similarityToCluster", similarity);
+            // Explicit edge to the closest earlier observation. The records remain distinct.
+            observation.put("similarToObservationId", match == null ? "" : match.referenceId);
             observation.put("reportTitle", title == null ? "" : title);
             observation.put("researchQuestion", question == null ? "" : question);
             observation.put("sourceUrl", url);
@@ -246,6 +248,7 @@ public final class ResearchKnowledgeStore {
             observation.put("clusterId", clusterId);
             observation.put("relationToCluster", relation);
             observation.put("similarityToCluster", similarity);
+            observation.put("similarToObservationId", match == null ? "" : match.referenceId);
             observation.put("reportTitle", title == null ? "" : title);
             observation.put("researchQuestion", safeQuestion(question));
             observation.put("sourceUrl", safeUrls.length() > 0 ? safeUrls.optString(0) : "");
@@ -510,8 +513,11 @@ public final class ResearchKnowledgeStore {
                     JSONObject item = findObservation(observations, id);
                     if (item == null) continue;
                     out.append("\n  • ").append(item.optString("text"));
-                    out.append("\n    ").append(item.optString("relationToCluster"))
-                       .append(" · ").append(item.optString("sourceDomain", "источник не определён"));
+                    String relation = item.optString("relationToCluster");
+                    String similarTo = item.optString("similarToObservationId", "");
+                    out.append("\n    ").append(relation);
+                    if (!similarTo.isEmpty()) out.append(" / SIMILAR_TO ").append(similarTo);
+                    out.append(" · ").append(item.optString("sourceDomain", "источник не определён"));
                     String conclusion = item.optString("preliminaryConclusion", "");
                     if (!conclusion.isEmpty()) out.append("\n    Предварительный вывод: ").append(conclusion);
                     added++;
