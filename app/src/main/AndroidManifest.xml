@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:theme="@style/AppTheme" android:label="Vector Agent Phone" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".AstraActivity" android:exported="false" />
         <activity android:name=".MultiAgentActivity" android:exported="false" />
@@ -15,6 +16,7 @@
         </service>
         <activity android:name=".TeacherActivity" android:exported="false" />
         <activity android:name=".LearningActivity" android:exported="false" />
+        <activity android:name=".InitiativeActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
