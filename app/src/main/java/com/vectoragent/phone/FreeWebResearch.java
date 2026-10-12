@@ -70,27 +70,30 @@ public final class FreeWebResearch {
 
         List<SearchHit> hits = new ArrayList<>();
         List<String> diagnostics = new ArrayList<>();
-        collect("DDG HTML", () -> searchDuckDuckGo(q), hits, diagnostics);
+        // The agenda stores full research briefs. Search engines work better with compact topic terms.
+        String searchQuery = compactSearchQuery(q);
+        collect("DDG HTML", () -> searchDuckDuckGo(searchQuery), hits, diagnostics);
 
-        if (dedupeHits(hits).size() < 3) {
-            collect("DDG Lite", () -> searchDuckDuckGoLite(q), hits, diagnostics);
+        if (usableHitCount(hits) < 3) {
+            collect("DDG Lite", () -> searchDuckDuckGoLite(searchQuery), hits, diagnostics);
         }
-        if (dedupeHits(hits).size() < 3) {
-            collect("Bing", () -> searchBing(q), hits, diagnostics);
+        if (usableHitCount(hits) < 3) {
+            collect("Bing", () -> searchBing(searchQuery), hits, diagnostics);
         }
-        if (dedupeHits(hits).size() < 3) {
-            collect("Wikipedia RU", () -> wikipediaSearch(q, "ru"), hits, diagnostics);
+        if (usableHitCount(hits) < 3) {
+            collect("Wikipedia RU", () -> wikipediaSearch(searchQuery, "ru"), hits, diagnostics);
         }
-        if (dedupeHits(hits).size() < 3) {
-            collect("Wikipedia EN", () -> wikipediaSearch(q, "en"), hits, diagnostics);
+        if (usableHitCount(hits) < 3) {
+            collect("Wikipedia EN", () -> wikipediaSearch(searchQuery, "en"), hits, diagnostics);
         }
 
         hits = dedupeHits(hits);
         if (hits.isEmpty()) {
             String detail = String.join("; ", diagnostics);
             if (detail.length() > 230) detail = detail.substring(0, 230) + "…";
-            throw new IOException("Не удалось получить результаты ни от одного бесплатного источника. Диагностика: "
-                    + detail + ". Задача оставлена незавершённой.");
+            throw new IOException("Не удалось получить результаты ни от одного бесплатного источника. "
+                    + "Запрос: «" + searchQuery + "». Диагностика: " + detail
+                    + ". Задача оставлена незавершённой.");
         }
 
         List<Source> sources = new ArrayList<>();
@@ -120,14 +123,21 @@ public final class FreeWebResearch {
         }
 
         if (sources.isEmpty()) {
+            // A URL alone is not evidence. Only keep fallback results that contain a usable snippet.
             for (SearchHit hit : hits) {
                 String domain = domain(hit.url);
-                if (domain.isEmpty() || domain.contains("duckduckgo.com")) continue;
-                sources.add(new Source(hit.title, hit.url, domain, clean(hit.snippet), ""));
+                String snippet = clean(hit.snippet);
+                if (domain.isEmpty() || domain.contains("duckduckgo.com") || snippet.isEmpty()) continue;
+                sources.add(new Source(hit.title, hit.url, domain, snippet, ""));
                 if (sources.size() >= MAX_SOURCE_PAGES) break;
             }
         }
-        if (sources.isEmpty()) throw new IOException("Поиск нашёл ссылки, но не удалось извлечь ни фрагментов, ни текста страниц");
+        if (sources.isEmpty()) {
+            String detail = String.join("; ", diagnostics);
+            if (detail.length() > 280) detail = detail.substring(0, 280) + "…";
+            throw new IOException("Поисковики вернули ссылки, но не удалось извлечь ни одного содержательного фрагмента. "
+                    + "Пустой отчёт не сохранён. Диагностика: " + detail);
+        }
 
         String report = buildReport(q, sources, fetched);
         List<String> urls = new ArrayList<>();
@@ -244,6 +254,25 @@ public final class FreeWebResearch {
         String window = html.substring(from, end);
         Matcher m = Pattern.compile("(?is)<(?:a|div|span)[^>]*class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>(.*?)</(?:a|div|span)>").matcher(window);
         return m.find() ? clean(stripTags(m.group(1))) : "";
+    }
+
+    private static int usableHitCount(List<SearchHit> input) {
+        Set<String> seen = new HashSet<>();
+        int count = 0;
+        for (SearchHit hit : input) {
+            if (hit == null || !isHttp(hit.url) || clean(hit.snippet).isEmpty()) continue;
+            String key = hit.url.replaceAll("[?#].*$", "").replaceAll("/+$", "");
+            if (!key.isEmpty() && seen.add(key)) count++;
+        }
+        return count;
+    }
+
+    private static String compactSearchQuery(String question) {
+        List<String> keywords = terms(question);
+        int limit = Math.min(12, keywords.size());
+        if (limit > 0) return String.join(" ", keywords.subList(0, limit));
+        String fallback = clean(question);
+        return fallback.length() > 120 ? fallback.substring(0, 120) : fallback;
     }
 
     private static List<SearchHit> dedupeHits(List<SearchHit> input) {
