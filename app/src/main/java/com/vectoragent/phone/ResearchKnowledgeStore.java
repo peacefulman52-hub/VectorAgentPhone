@@ -694,13 +694,24 @@ public final class ResearchKnowledgeStore {
                     out.append("\n    ").append(item.optString("status", "PRELIMINARY"))
                        .append(" · эвристический балл ").append(Math.round(item.optDouble("confidence", 0.25) * 100))
                        .append("% (не вероятность истинности)");
-                    if ("AGENT_PRELIMINARY_CONCLUSION".equals(item.optString("origin"))) {
+                    if ("LOCAL_SYMBOLIC_HYPOTHESIS".equals(item.optString("origin"))) {
+                        out.append(" · локальная гипотеза (не внешний факт)");
+                    } else if ("AGENT_PRELIMINARY_CONCLUSION".equals(item.optString("origin"))) {
                         out.append(" · предварительный вывод агента");
                     } else {
                         out.append(" · извлечённое наблюдение");
                     }
-                    out.append("\n    Связь: ").append(item.optString("relationToCluster"))
-                       .append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
+                    out.append("\n    Связь: ").append(item.optString("relationToCluster"));
+                    if ("LOCAL_SYMBOLIC_HYPOTHESIS".equals(item.optString("origin"))) {
+                        out.append(" · внешний URL не заявлен");
+                    } else {
+                        out.append(" · источник: ").append(item.optString("sourceDomain", "не определён"));
+                    }
+                    String hypothesisStatus = item.optString("hypothesisStatus", "");
+                    if (!hypothesisStatus.isEmpty()) {
+                        out.append("\n    Статус локальной гипотезы: ").append(hypothesisStatus)
+                                .append(" · поддержка: ").append(item.optInt("hypothesisSupport", 0));
+                    }
                     String conclusion = item.optString("preliminaryConclusion", "");
                     if (!conclusion.isEmpty()) out.append("\n    Предварительный вывод: ")
                             .append(conclusion.length() > 200 ? conclusion.substring(0, 197) + "…" : conclusion);
