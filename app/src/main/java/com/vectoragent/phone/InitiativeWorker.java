@@ -59,7 +59,7 @@ public final class InitiativeWorker extends Worker {
 
                 if (!question.trim().isEmpty()
                         && !InitiativeResearchAgenda.hasSuccessfulResearchForQuestion(context, question)) {
-                    OpenAIWebTeacher.Result result = OpenAIWebTeacher.research(apiKey, question, store);
+                    OpenAIWebTeacher.Result result = OpenAIWebTeacher.researchQuestion(apiKey, question);
                     if (result.report != null && !result.report.trim().isEmpty()) {
                         InitiativeResearchAgenda.saveResult(context, topicId, title, question, result.report, result.urls);
                         String summary = result.report.length() > 650
