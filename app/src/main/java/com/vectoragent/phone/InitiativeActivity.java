@@ -43,8 +43,8 @@ public final class InitiativeActivity extends Activity {
         scroll.addView(root); setContentView(scroll);
 
         root.addView(tv("🧭 ASTRA INITIATIVE", 24));
-        root.addView(tv("Агент уже получил стартовую программу из 7 реальных исследовательских вопросов. Он ищет веб-источники через OpenAI Responses API, сохраняет отчёты и ссылки, а затем переходит к следующей теме. Он не изменяет факты в памяти автоматически.", 14));
-        root.addView(tv("Важно: исследование через API расходует твою API-квоту. Добавь ключ в VECTOR → Настройки. Ручной запуск выполняет один поиск; ежедневный режим запускает до одного исследования за цикл расписания.", 13));
+        root.addView(tv("Агент уже получил стартовую программу из 7 реальных исследовательских вопросов. Он ищет веб-источники через OpenAI Responses API, сохраняет отчёты и ссылки, а затем переходит к следующей теме. Исследователь отправляет API только выбранный вопрос, не всю локальную память. Он не изменяет факты автоматически.", 14));
+        root.addView(tv("Важно: исследование через API расходует твою API-квоту. Добавь ключ в VECTOR → Настройки. Ручной запуск выполняет одно исследование; ежедневный режим запускает до одного исследования за цикл расписания. Не добавляй в вопросы пароли, токены или другие секреты.", 13));
 
         status = tv("", 13); root.addView(status);
         root.addView(tv("Следующая задача", 18));
@@ -184,7 +184,7 @@ public final class InitiativeActivity extends Activity {
         renderStatus("Исследую: " + title + ". Ищу независимые источники; это может занять до минуты.");
         new Thread(() -> {
             try {
-                OpenAIWebTeacher.Result result = OpenAIWebTeacher.research(apiKey, savedQuestion, store);
+                OpenAIWebTeacher.Result result = OpenAIWebTeacher.researchQuestion(apiKey, savedQuestion);
                 if (result.report == null || result.report.trim().isEmpty()) {
                     runOnUiThread(() -> {
                         renderStatus("Поиск не вернул отчёта. Задача не отмечена выполненной; проверь API и повтори.");
