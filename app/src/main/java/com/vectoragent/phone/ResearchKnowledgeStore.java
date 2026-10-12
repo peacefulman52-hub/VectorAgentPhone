@@ -216,15 +216,15 @@ public final class ResearchKnowledgeStore {
                 if (row != null) alive.add(row.optString("id"));
             }
             for (int i = clusters.length() - 1; i >= 0; i--) {
-                JSONObject cluster = clusters.optJSONObject(i);
-                if (cluster == null) { clusters.remove(i); continue; }
-                JSONArray priorMembers = cluster.optJSONArray("members");
+                JSONObject storedCluster = clusters.optJSONObject(i);
+                if (storedCluster == null) { clusters.remove(i); continue; }
+                JSONArray priorMembers = storedCluster.optJSONArray("members");
                 JSONArray keep = new JSONArray();
                 if (priorMembers != null) for (int j = 0; j < priorMembers.length(); j++) {
                     String member = priorMembers.optString(j);
                     if (alive.contains(member)) keep.put(member);
                 }
-                cluster.put("members", keep);
+                storedCluster.put("members", keep);
                 if (keep.length() == 0) clusters.remove(i);
             }
             while (clusters.length() > MAX_CLUSTERS) clusters.remove(0);
