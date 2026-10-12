@@ -21,8 +21,6 @@ jobs:
           gradle-version: '8.7'
       - name: Run offline research regression tests
         run: gradle --no-daemon testDebugUnitTest
-      - name: Run JVM regression tests
-        run: gradle --no-daemon testDebugUnitTest
       - name: Build APK
         run: gradle --no-daemon assembleDebug
       - name: Upload APK artifact
