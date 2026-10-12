@@ -191,8 +191,6 @@ public final class InitiativeActivity extends Activity {
                     return;
                 }
                 InitiativeResearchAgenda.saveResult(this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
-                // Keep cautious findings in the dedicated cluster store, separate from factual MemoryStore.
-                ResearchKnowledgeStore.ingestReport(this, savedTitle, savedQuestion, result.report, result.urls);
                 runOnUiThread(() -> {
                     setResearchText(InitiativeResearchAgenda.latestResultText(this));
                     refreshAgenda();
