@@ -45,34 +45,34 @@ public class MainActivityCopyAnswerTest {
 
     @Test
     public void copiesOnlyLatestActualAgentReplyAndPreservesItsText() {
-        assertNotNull(activity.copyLastAnswer);
+        assertNotNull(activity.copyLastAnswerButton);
         // The initial welcome message is not treated as a real answer.
-        assertFalse(activity.copyLastAnswer.isEnabled());
+        assertFalse(activity.copyLastAnswerButton.isEnabled());
         assertEquals(1, countCopyButtons(activity.findViewById(android.R.id.content)));
 
         activity.addBubble("Ты", "Пользовательский вопрос — не копировать");
         activity.addBubble("Веб-исследователь", "Служебный или исследовательский текст");
         assertFalse("Non-agent messages must not enable the copy button",
-                activity.copyLastAnswer.isEnabled());
+                activity.copyLastAnswerButton.isEnabled());
 
         String firstAnswer = "Ответ агента №1\nВторая строка с пробелом ";
         activity.addBubble("Агент", firstAnswer);
-        assertTrue(activity.copyLastAnswer.isEnabled());
+        assertTrue(activity.copyLastAnswerButton.isEnabled());
 
         // Progress messages must not replace the latest agent answer.
         activity.addBubble("Веб-исследователь", "Более новое служебное сообщение");
-        activity.copyLastAnswer.performClick();
+        activity.copyLastAnswerButton.performClick();
         assertEquals(firstAnswer, clipboardText());
 
         // A completed, user-facing web research report is also copyable.
         String completedResearch = "Результат бесплатного веб-исследования:\\nВывод со ссылками";
         activity.addBubble("Веб-исследователь", completedResearch);
-        activity.copyLastAnswer.performClick();
+        activity.copyLastAnswerButton.performClick();
         assertEquals(completedResearch, clipboardText());
 
         String secondAnswer = "Ответ агента №2";
         activity.addBubble("Агент", secondAnswer);
-        activity.copyLastAnswer.performClick();
+        activity.copyLastAnswerButton.performClick();
         assertEquals(secondAnswer, clipboardText());
         assertEquals(1, countCopyButtons(activity.findViewById(android.R.id.content)));
     }
