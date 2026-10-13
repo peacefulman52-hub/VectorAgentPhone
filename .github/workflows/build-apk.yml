@@ -26,11 +26,11 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VectorAgentPhone-3.6.8-apk
+          name: VectorAgentPhone-3.7.0-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.6.8 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.6.8" --notes "Adds one prominent copy-last-answer control in chat and a copy button for saved research reports, alongside source-attributed preliminary finding clusters and offline regression tests. No paid API key is required." || true
+          gh release create v3.7.0 app/build/outputs/apk/debug/app-debug.apk --title "VectorAgentPhone v3.7.0" --notes "Adds a no-paid-API mentor handoff screen, durable local continuity files, safe import of mentor feedback as preliminary notes, explicit user-confirmed decision logging, and Robolectric regression tests." || true
