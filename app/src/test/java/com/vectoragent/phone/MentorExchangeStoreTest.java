@@ -34,8 +34,8 @@ public class MentorExchangeStoreTest {
 
         String prompt = MentorExchangeStore.buildMentorPrompt(context);
         assertTrue(prompt.contains("Тест преемственности"));
-        assertTrue(prompt.contains("не превращай свой ответ в факт"));
-        assertTrue(prompt.contains("PRELIMINARY"));
+        assertTrue(prompt.contains("Не превращай свой ответ в факт"));
+        assertTrue(prompt.contains("VERIFIED_FACTS"));
         assertTrue(MentorExchangeStore.file(context, "CHECKPOINT.md").isFile());
         assertTrue(MentorExchangeStore.file(context, "EVENTS.jsonl").isFile());
     }
