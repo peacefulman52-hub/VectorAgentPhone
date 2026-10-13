@@ -1,21 +1,30 @@
 # Astra / VectorAgentPhone — Development Handoff
-Updated: 2026-10-12
+Updated: 2026-10-13
 
 This file is the durable handoff for work that must survive conversation limits. Update it at meaningful milestones; do not treat successful compilation as proof of runtime behavior.
 
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Free web research with cautious conclusion clusters and tests (v3.6.6)"
+- Active work: PR #16, "Astra 3.6.8 — free web research and one-tap answer copy"
 - PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
 - Working branch: `agent/initiative-loop-1`
-- App version: `3.6.6`, `versionCode 366` so it can upgrade an installed `3.6.5` build.
+- App version: `3.6.8`, `versionCode 368` so it can upgrade an installed `3.6.7` build. The v3.6.6 artifact listed below predates the copy-button change and must not be used to validate v3.6.8.
 - Code changes include compact search queries, provider fallback, a persistent source-attributed research store, a cautious extractive takeaway per successful report, basis links to source-observation IDs, and a UI panel showing topical clusters and confidence.
 - Validated v3.6.6 application SHA: `4c02e2ef845326eeca6a0815016ccd97feeddbb3`.
 - GitHub Actions run #264 passed `testDebugUnitTest`, `assembleDebug`, and artifact upload for that exact SHA: https://github.com/peacefulman52-hub/VectorAgentPhone/actions/runs/38266597167
 - Artifact: `VectorAgentPhone-3.6.6-apk`, 2,948,080 bytes, artifact ID `11755575112`, SHA-256 `d3ff371ee182457e26e6204eea0d918fb10bfa9938a8dc967eabed3fc94a90b0`, available from the run’s Artifacts section.
 - This validated SHA includes the late-source lifecycle fix: an already-upserted local symbolic hypothesis is moved into a newly relevant source cluster when evidence arrives later, keeping the observation ID and stable hypothesis ID, adding exactly one cluster-member edge, pruning the empty old cluster, and never copying a web URL onto the hypothesis.
-- Physical-device verification is still outstanding. This APK is ready for the phone smoke test, but the live free-search path has not been verified on-device.
+- Physical-device verification is still outstanding for free search, persistence, and clipboard copy. The v3.6.6 artifact is historical and does not include the one-tap copy button.
+
+## 2026-10-13 — v3.6.8 one-tap answer copy
+
+- The canonical implementation is in PR #16 / branch `agent/initiative-loop-1`; stacked PR #21 was closed as superseded to avoid competing branches.
+- The chat has one global `📋 Скопировать последний ответ` button, disabled until a real nonblank `Агент` reply exists. It copies the exact latest Agent text to Android's clipboard, including line breaks and trailing spaces, and shows a short Toast.
+- The canned welcome at chat startup is not a copyable response. User prompts, non-Agent researcher messages, and blank text cannot replace the copy target. A newer Agent reply replaces the previous target.
+- The Initiative screen keeps a separate `📋 Скопировать ответ исследования` control for the last saved research report.
+- `MainActivityCopyAnswerTest` is a Robolectric regression covering initial disabled state, exactly one chat copy button, filtering user/researcher messages, exact clipboard text, and latest-answer replacement.
+- Do not call v3.6.8 APK-ready until the newest GitHub Actions run for the exact current HEAD passes `testDebugUnitTest`, `assembleDebug`, and artifact upload. A physical Android smoke test is still needed for clipboard behavior and live web-search/network behavior.
 
 ## Latest bug and code changes
 
