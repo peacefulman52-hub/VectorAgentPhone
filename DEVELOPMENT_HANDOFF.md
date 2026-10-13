@@ -1,6 +1,14 @@
 # Astra / VectorAgentPhone — Development Handoff
 Updated: 2026-10-13
 
+## 2026-10-13 — v3.7.0 free mentor exchange (CI pending for this change)
+
+- Entry points: main screen and Initiative research screen. “Наставник ChatGPT” prepares a bounded, source-aware text packet and opens Android sharing; no paid API/key and no automatic network transfer.
+- Paste the returned ChatGPT text into Mentor Exchange and save it. The complete response is archived under app-private `mentor-memory/replies/`; latest copy is `LATEST_MENTOR_REPLY.md`.
+- Continuity files in app-private storage: `CHECKPOINT.md`, `DECISIONS.md`, `EVENTS.jsonl`, `VERIFIED_FACTS.md`. Only an explicit user checkbox appends a recommendation to DECISIONS.
+- Mentor replies may be indexed in `ResearchKnowledgeStore` only as `PRELIMINARY` mentor feedback with no invented evidence URLs. The factual `MemoryStore` is not changed and VERIFIED_FACTS is never updated automatically.
+- Regression tests added for package contents, persistence, decision opt-in, and unchanged factual memory. CI and physical Android smoke test are still required; sharing depends on the selected apps installed on the phone.
+
 This file is the durable handoff for work that must survive conversation limits. Update it at meaningful milestones; do not treat successful compilation as proof of runtime behavior.
 
 ## Current state
