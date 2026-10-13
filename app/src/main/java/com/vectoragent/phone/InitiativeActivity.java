@@ -1,7 +1,7 @@
 package com.vectoragent.phone;
 
 import android.Manifest;
-import android.app.Activity;
+import android.app.Activity;\nimport android.content.Intent;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.content.pm.PackageManager;
@@ -102,7 +102,7 @@ public final class InitiativeActivity extends Activity {
             }
         });
 
-        root.addView(tv("Накопленные кластеры предварительных выводов", 18));
+        Button mentorExchange = btn("🤝 Передать отчёт наставнику и принять ответ");\n        root.addView(mentorExchange);\n        mentorExchange.setOnClickListener(v -> startActivity(new Intent(this, MentorExchangeActivity.class)));\n\n        root.addView(tv("Накопленные кластеры предварительных выводов", 18));
         knowledgeView = tv(ResearchKnowledgeStore.summaryText(this), 13);
         root.addView(knowledgeView);
         Button refreshKnowledge = btn("↻ Обновить кластеры выводов");
