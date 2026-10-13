@@ -1,0 +1,284 @@
+package com.vectoragent.phone;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Bundle;
+import android.text.method.LinkMovementMethod;
+import android.text.util.Linkify;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+/** UI for the seeded research programme and proactive local initiative loop. */
+public final class InitiativeActivity extends Activity {
+    private static final int REQUEST_NOTIFICATIONS = 73;
+    private LinearLayout root;
+    private TextView status, reportView, agendaView, researchView, knowledgeView;
+    private EditText customQuestion;
+    private Button scanButton, researchButton;
+    private boolean researchRunning;
+
+    private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
+    private TextView tv(String s, int size) {
+        TextView t = new TextView(this);
+        t.setText(s); t.setTextSize(size); t.setTextColor(Color.rgb(35,35,40));
+        t.setPadding(dp(8), dp(8), dp(8), dp(8)); return t;
+    }
+    private Button btn(String s) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); return b; }
+
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        InitiativeResearchAgenda.ensureSeeded(this);
+        ScrollView scroll = new ScrollView(this);
+        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(12), dp(10), dp(12), dp(18));
+        scroll.addView(root); setContentView(scroll);
+
+        root.addView(tv("🧭 ASTRA INITIATIVE", 24));
+        root.addView(tv("Агент получил стартовую программу из 7 исследовательских вопросов. Он бесплатно ищет публичные веб-страницы без API-ключа, извлекает подходящие фрагменты локально, сохраняет отчёты и ссылки, а затем переходит к следующей теме. Локальная память не отправляется в облако, факты автоматически не меняются.", 14));
+        root.addView(tv("Бесплатный режим не требует OpenAI API key и не расходует API-квоту. Поиск выполняется через общедоступную поисковую выдачу и открытые страницы; сайты могут ограничивать автоматические запросы. Синтез локальный и extractive: агент собирает релевантные фрагменты, но не притворяется, что сделал полноценный вывод большой языковой моделью.", 13));
+
+        status = tv("", 13); root.addView(status);
+        root.addView(tv("Следующая задача", 18));
+        reportView = tv("", 15); reportView.setGravity(Gravity.START); root.addView(reportView);
+
+        scanButton = btn("🔎 Найти следующую задачу");
+        researchButton = btn("🔬 Исследовать выбранный вопрос сейчас");
+        root.addView(scanButton); root.addView(researchButton);
+        scanButton.setOnClickListener(v -> refreshInitiative());
+        researchButton.setOnClickListener(v -> runResearch());
+
+        root.addView(tv("Добавить собственный исследовательский вопрос", 18));
+        customQuestion = new EditText(this);
+        customQuestion.setHint("Например: как проверить, что Astra действительно учится на ошибках?");
+        customQuestion.setMinLines(2);
+        customQuestion.setGravity(Gravity.TOP);
+        root.addView(customQuestion);
+        Button addQuestion = btn("＋ Добавить вопрос в очередь");
+        root.addView(addQuestion);
+        addQuestion.setOnClickListener(v -> {
+            String q = customQuestion.getText().toString().trim();
+            String id = InitiativeResearchAgenda.addCustom(this, q);
+            if (id.isEmpty()) {
+                Toast.makeText(this, "Вопрос слишком короткий (нужно хотя бы 8 символов).", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            customQuestion.setText("");
+            refreshInitiative();
+            Toast.makeText(this, "Вопрос сохранён в исследовательской очереди.", Toast.LENGTH_SHORT).show();
+        });
+
+        root.addView(tv("Программа и прогресс", 18));
+        agendaView = tv("", 13); root.addView(agendaView);
+        root.addView(tv("Последний сохранённый результат", 18));
+        researchView = tv("", 14);
+        researchView.setAutoLinkMask(Linkify.WEB_URLS);
+        researchView.setMovementMethod(LinkMovementMethod.getInstance());
+        root.addView(researchView);
+        Button copyResearch = btn("📋 Скопировать ответ исследования");
+        root.addView(copyResearch);
+        copyResearch.setOnClickListener(v -> {
+            String answer = researchView.getText().toString();
+            if (answer.trim().isEmpty()) {
+                Toast.makeText(this, "Пока нечего копировать", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("Ответ исследования Astra", answer));
+                Toast.makeText(this, "Ответ исследования скопирован", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Не удалось открыть буфер обмена", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        Button mentorExchange = btn("🤝 Передать отчёт наставнику и принять ответ");
+        root.addView(mentorExchange);
+        mentorExchange.setOnClickListener(v -> startActivity(new Intent(this, MentorExchangeActivity.class)));
+
+        root.addView(tv("Накопленные кластеры предварительных выводов", 18));
+        knowledgeView = tv(ResearchKnowledgeStore.summaryText(this), 13);
+        root.addView(knowledgeView);
+        Button refreshKnowledge = btn("↻ Обновить кластеры выводов");
+        root.addView(refreshKnowledge);
+        refreshKnowledge.setOnClickListener(v -> refreshKnowledge());
+
+        Button enable = btn("▶ Включить ежедневное бесплатное исследование");
+        Button disable = btn("⏸ Выключить ежедневное исследование");
+        root.addView(enable); root.addView(disable);
+        enable.setOnClickListener(v -> enableSchedule());
+        disable.setOnClickListener(v -> {
+            InitiativeScheduler.disable(this);
+            renderStatus("Ежедневное исследование выключено. Запуск вручную по-прежнему доступен.");
+        });
+
+        renderStatus(InitiativeScheduler.isEnabled(this)
+                ? "Ежедневное бесплатное исследование включено."
+                : "Ежедневное бесплатное исследование выключено.");
+        refreshInitiative();
+        refreshAgenda();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (status != null) renderStatus(InitiativeScheduler.isEnabled(this)
+                ? "Ежедневное бесплатное исследование включено. Android может сдвигать время выполнения."
+                : "Ежедневное бесплатное исследование выключено.");
+    }
+
+    private void enableSchedule() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+        } else {
+            InitiativeScheduler.enable(this);
+            renderStatus("Ежедневное бесплатное исследование включено. Поисковые сайты могут ограничивать запросы.");
+            Toast.makeText(this, "Ежедневное исследование включено", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_NOTIFICATIONS) return;
+        // Consent is explicit because background networking can run without the app in the foreground.
+        InitiativeScheduler.enable(this);
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        renderStatus(granted
+                ? "Ежедневное бесплатное исследование включено; уведомления разрешены."
+                : "Ежедневное бесплатное исследование включено, но уведомления запрещены. Фоновая задача всё равно может выполняться.");
+    }
+
+    private void runResearch() {
+        if (researchRunning) return;
+
+        InitiativeEngine.Report selected = InitiativeEngine.scan(this);
+        if (!selected.actionable) {
+            render(selected);
+            renderStatus("В очереди больше нет незавершённых задач. Добавь новый вопрос выше.");
+            return;
+        }
+
+        MemoryStore store = new MemoryStore(this);
+        String topicId = "";
+        String title = selected.title;
+        String question = "";
+
+        if ("RESEARCH".equals(selected.taskType)) {
+            InitiativeResearchAgenda.Topic topic = InitiativeResearchAgenda.get(this, selected.taskId);
+            if (topic != null && !topic.completed) {
+                topicId = topic.id; title = topic.title; question = topic.question;
+            }
+        } else if ("CONFLICT".equals(selected.taskType) || "CANDIDATE".equals(selected.taskType)) {
+            question = store.researchTarget(selected.taskId);
+        } else if ("HYPOTHESIS".equals(selected.taskType)) {
+            for (MemoryStore.Hypothesis h : store.hypotheses()) {
+                if (selected.taskId.equals(h.id)) {
+                    question = "Проверить гипотезу: " + h.rule + " Основание: " + h.evidence;
+                    break;
+                }
+            }
+        }
+
+        if (question == null || question.trim().isEmpty()) {
+            renderStatus("Не удалось восстановить текст задачи. Нажми «Найти следующую задачу» и попробуй ещё раз.");
+            return;
+        }
+
+        final String savedTopicId = topicId;
+        final String savedTitle = title;
+        final String savedQuestion = question;
+        researchRunning = true;
+        researchButton.setEnabled(false);
+        scanButton.setEnabled(false);
+        renderStatus("Бесплатно исследую: " + title + ". Ищу открытые страницы и извлекаю релевантные фрагменты.");
+        new Thread(() -> {
+            try {
+                FreeWebResearch.Result result = FreeWebResearch.research(savedQuestion);
+                if (result.report == null || result.report.trim().isEmpty()) {
+                    runOnUiThread(() -> {
+                        renderStatus("Поиск не вернул отчёта. Задача не отмечена выполненной; проверь соединение и повтори.");
+                        setResearchText(InitiativeResearchAgenda.latestResultText(this));
+                        researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
+                    });
+                    return;
+                }
+                int observationCount = InitiativeResearchAgenda.saveResult(
+                        this, savedTopicId, savedTitle, savedQuestion, result.report, result.urls);
+                final int savedObservationCount = observationCount;
+                runOnUiThread(() -> {
+                    setResearchText(InitiativeResearchAgenda.latestResultText(this));
+                    refreshAgenda();
+                    render(InitiativeEngine.scan(this));
+                    if (savedObservationCount > 0) {
+                        renderStatus("Исследование сохранено. Предварительных наблюдений: "
+                                + savedObservationCount + "; тематические кластеры обновлены. Найдено URL: "
+                                + (result.urls == null ? 0 : result.urls.length)
+                                + ". Выводы остаются предварительными; фактическая память не изменялась.");
+                    } else {
+                        renderStatus("Отчёт сохранён, но содержательных наблюдений извлечь не удалось. "
+                                + "Задача остаётся незавершённой; фактическая память не изменялась.");
+                    }
+                    refreshKnowledge();
+                    researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    String message = e.getMessage();
+                    if (message == null || message.trim().isEmpty()) message = e.getClass().getSimpleName();
+                    if (message.length() > 300) message = message.substring(0, 300) + "…";
+                    renderStatus("Бесплатное веб-исследование не удалось: " + message + ". Поиск мог быть временно ограничен; попробуй позже.");
+                    researchRunning = false; researchButton.setEnabled(true); scanButton.setEnabled(true);
+                });
+            }
+        }).start();
+    }
+
+    private void refreshInitiative() {
+        InitiativeEngine.Report report = InitiativeEngine.scan(this);
+        render(report);
+        refreshAgenda();
+        setResearchText(InitiativeResearchAgenda.latestResultText(this));
+    }
+
+    private void refreshAgenda() {
+        if (agendaView != null) agendaView.setText(InitiativeResearchAgenda.listText(this));
+    }
+
+    private void setResearchText(String text) {
+        if (researchView == null) return;
+        researchView.setText(text);
+        Linkify.addLinks(researchView, Linkify.WEB_URLS);
+        researchView.setMovementMethod(LinkMovementMethod.getInstance());
+        refreshKnowledge();
+    }
+
+    private void refreshKnowledge() {
+        if (knowledgeView != null) knowledgeView.setText(ResearchKnowledgeStore.summaryText(this));
+    }
+
+    private void renderStatus(String value) {
+        if (status != null) status.setText(value);
+    }
+
+    private void render(InitiativeEngine.Report report) {
+        if (report == null) {
+            reportView.setText("Пока нет отчёта. Нажми «Найти следующую задачу».");
+            return;
+        }
+        reportView.setText(report.displayText());
+        renderStatus(InitiativeScheduler.isEnabled(this)
+                ? "Ежедневное бесплатное исследование включено."
+                : "Ежедневное бесплатное исследование выключено.");
+    }
+}

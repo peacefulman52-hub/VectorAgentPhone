@@ -3,6 +3,8 @@ package com.vectoragent.phone;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.SharedPreferences;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.graphics.Color;
@@ -25,7 +27,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>(); ArrayList<String[]> chatTranscript = new ArrayList<>();
-    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; String lastAgentAnswer = ""; Button copyLastAnswerButton;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -40,7 +42,7 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v2.0 • память → агенты → спор → эксперимент → результат → обучение",12));
+        root.addView(tv("v3.7.0 • память → наставник → проверка → эксперимент → обучение",12));
         LinearLayout row1=new LinearLayout(this);row1.setGravity(Gravity.CENTER);
         Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор");
         for(Button b:new Button[]{chatMode,memMode,srcMode,genMode})row1.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -50,7 +52,9 @@ public class MainActivity extends Activity {
         for(Button b:new Button[]{setMode,teacherMode,learningMode,labMode})row2.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
         root.addView(row2);
         Button astraMode=btn("🛰 Astra Bridge"); astraMode.setTextSize(15); root.addView(astraMode);
-        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class)));
+        Button initiativeMode=btn("🧭 Самостоятельная инициатива"); initiativeMode.setTextSize(15); root.addView(initiativeMode);
+        Button mentorMode=btn("🤝 Наставник ChatGPT (бесплатно)"); mentorMode.setTextSize(15); root.addView(mentorMode);
+        chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class))); initiativeMode.setOnClickListener(v->startActivity(new Intent(this,InitiativeActivity.class))); mentorMode.setOnClickListener(v->startActivity(new Intent(this,MentorExchangeActivity.class)));
         View line=new View(this);line.setBackgroundColor(Color.LTGRAY);root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
     }
     void showChat(){
@@ -60,7 +64,18 @@ public class MainActivity extends Activity {
         chat.addView(tv("Разговор — чистый диалог. Служебные события обучения, конфликты и изменения гипотез смотрятся во вкладке «Память».",13));
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
         if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание."});
-        for(String[] m:chatTranscript) addBubbleView(m[0],m[1]);
+        lastAgentAnswer="";
+        for(int i=0;i<chatTranscript.size();i++){
+            String[] m=chatTranscript.get(i);
+            // Index 0 is the default greeting, not a response to the current user task.
+            if(i>0 && m.length>1 && isCopyableAnswer(m[0],m[1])) lastAgentAnswer=m[1];
+            addBubbleView(m[0],m[1]);
+        }
+        copyLastAnswerButton=btn("📋 Скопировать последний ответ");
+        copyLastAnswerButton.setTextSize(16);
+        copyLastAnswerButton.setEnabled(!lastAgentAnswer.isEmpty());
+        copyLastAnswerButton.setOnClickListener(v->copyLatestAgentAnswer());
+        chat.addView(copyLastAnswerButton);
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
@@ -96,24 +111,59 @@ public class MainActivity extends Activity {
     }
 
     void runWebTeacher(){
-        String key=getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key","");
-        if(key.trim().isEmpty()){ toast("Сначала добавь OpenAI API key в ⚙ Настройки."); return; }
         String id=store.firstLearningTarget();
-        if(id.isEmpty()){ addBubble("ИИ-учитель","Нет CANDIDATE/CONFLICT для исследования. Дай агенту новое проверяемое утверждение."); return; }
+        if(id.isEmpty()){
+            addBubble("Веб-исследователь","Нет CANDIDATE/CONFLICT для исследования. Дай агенту новое проверяемое утверждение.");
+            return;
+        }
         String target=store.researchTarget(id);
-        addBubble("ИИ-учитель","Исследую в интернете:\n"+target+"\n\nИщу несколько независимых источников...");
+        addBubble("Веб-исследователь","Бесплатно исследую в открытом интернете:\\n"+target+"\\n\\nИщу доступные страницы и извлекаю релевантные фрагменты без платного API...");
         new Thread(()->{
             try{
-                OpenAIWebTeacher.Result rr=OpenAIWebTeacher.research(key,target,store);
-                String saved=store.recordWebEvidence(id,rr.report,rr.urls);
-                runOnUiThread(()->addBubble("ИИ-учитель","Результат исследования:\n"+rr.report+"\n\n🌐 Источников: "+rr.urls.length+"\n🧠 "+saved));
-            }catch(Exception e){ runOnUiThread(()->addBubble("ИИ-учитель","⚠️ Веб-исследование не выполнено: "+e.getMessage())); }
+                FreeWebResearch.Result rr=FreeWebResearch.research(target);
+                StringBuilder saved=new StringBuilder(rr.report);
+                if(rr.urls!=null && rr.urls.length>0){
+                    saved.append("\\n\\nИсточники:");
+                    for(String u:rr.urls) saved.append("\\n• ").append(u);
+                }
+                String savedText=saved.toString();
+                store.appendLearningLog("FREE_WEB_RESEARCH: "+target+" | sources="+(rr.urls==null?0:rr.urls.length)+" | saved outside factual MemoryStore");
+                runOnUiThread(()->{
+                    rememberContext("Бесплатное исследование: "+target,savedText);
+                    addBubble("Веб-исследователь","Результат бесплатного веб-исследования:\\n"+savedText
+                        +"\\n\\nОтчёт сохранён в истории контекста, не добавлен как факт в MemoryStore.");
+                });
+            }catch(Exception e){
+                String message=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();
+                if(message.length()>240) message=message.substring(0,240)+"…";
+                final String safeMessage=message;
+                runOnUiThread(()->addBubble("Веб-исследователь","Бесплатный поиск не выполнен: "+safeMessage));
+            }
         }).start();
     }
 
     LinearLayout chatHistory;
+    void copyLatestAgentAnswer(){
+        String text=lastAgentAnswer==null?"":lastAgentAnswer;
+        if(text.trim().isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
+        ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(clipboard==null){ Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show(); return; }
+        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ Astra",text));
+        Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
+    }
+    boolean isCopyableAnswer(String who,String text){
+        if(text==null || text.trim().isEmpty()) return false;
+        String answer=text.trim();
+        if("Агент".equals(who)) {
+            return !"Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.".equals(answer);
+        }
+        // Ignore search progress/service chatter, but allow the completed result block to be copied.
+        return "Веб-исследователь".equals(who)
+                && answer.startsWith("Результат бесплатного веб-исследования:");
+    }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
+        if(isCopyableAnswer(who,text)){ lastAgentAnswer=text; if(copyLastAnswerButton!=null) copyLastAnswerButton.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
@@ -121,6 +171,7 @@ public class MainActivity extends Activity {
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(dp(10),dp(8),dp(10),dp(8));
         TextView h=tv(who,12); h.setTypeface(Typeface.DEFAULT,Typeface.BOLD); h.setTextColor(Color.rgb(30,90,120)); row.addView(h);
         TextView bb=tv(text,15); bb.setBackground(bg(who.equals("Ты")?Color.rgb(232,242,250):Color.rgb(242,242,242),18)); row.addView(bb);
+
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(5),0,dp(5)); chatHistory.addView(row,lp);
     }
     String memoryAnswer(String q){
@@ -186,10 +237,8 @@ public class MainActivity extends Activity {
     }
     void showSettings(){
         content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.4: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
-        content.addView(tv("🤖 Подключение ИИ-учителя",17));
-        content.addView(tv("ИИ-учитель использует OpenAI Responses API и веб-поиск, чтобы находить внешние свидетельства. Результат не считается независимым источником сам по себе; приложение извлекает домены найденных источников и использует их как отдельные свидетельства.",12));
-        EditText apiKey=new EditText(this);apiKey.setHint("OpenAI API key (sk-...)");apiKey.setSingleLine(true);apiKey.setInputType(129);apiKey.setText(getSharedPreferences("vector_settings",MODE_PRIVATE).getString("openai_key",""));content.addView(apiKey);
-        Button saveKey=btn("Сохранить API key");content.addView(saveKey);saveKey.setOnClickListener(v->{getSharedPreferences("vector_settings",MODE_PRIVATE).edit().putString("openai_key",apiKey.getText().toString().trim()).apply();toast("API key сохранён на устройстве");});
+        content.addView(tv("🌐 Бесплатный веб-исследователь",17));
+        content.addView(tv("Ищет публичные страницы без платного API и без API-ключа, извлекает тематические фрагменты и сохраняет отчёт со ссылками в истории контекста. Сайты могут ограничивать автоматические запросы; локальный обзор не является проверкой истины и не изменяет фактическую память.",12));
         
         addSetting("Автоактивация","Если включена, новое наблюдение получает ACTIVE при достаточной уверенности и отсутствии конфликта.",autoSwitch());
         content.addView(tv("Порог уверенности",17));content.addView(tv("Это порог состояния, а не математическая вероятность истины.",12));SeekBar sb=new SeekBar(this);sb.setMax(100);sb.setProgress((int)(store.threshold()*100));content.addView(sb);TextView sl=tv("Сейчас: "+Math.round(store.threshold()*100)+"%",13);content.addView(sl);sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean f){sl.setText("Сейчас: "+p+"%");}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){store.setThreshold(s.getProgress()/100.0);}});

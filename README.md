@@ -23,6 +23,33 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 GitHub Actions produces an installable debug APK.
 
+## v3.6.6 — Cautious takeaways, local hypothesis clusters and tests
+
+- Each successful source-attributed research run now adds one modest extractive takeaway alongside the original observations. The takeaway cites the source material and explicitly says it is not a verified fact or proof that sources are independent.
+- Similarity links point back to a source observation ID. Derived takeaways remain in the same local cluster but are excluded from the evidence-matching pool, so one conclusion cannot become independent evidence for another.
+- Possible numeric or negation conflicts remain separate preliminary records with an explicit source-observation basis.
+- A finding without a traceable URL is not usable progress. If extraction produces no attributed observation, the report may be retained for diagnosis but the topic stays incomplete.
+- Offline Robolectric regression tests cover source-block URL attribution, footer exclusion, ambiguous/missing URL refusal, exact same-source repeat handling, related-but-distinct clustering, numeric and negation warnings, derived-takeaway linkage, and empty extraction.
+- GitHub Actions runs `testDebugUnitTest` before assembling the APK. CI still cannot replace a real Android network/persistence test.
+- During Initiative scans, symbolic hypotheses from `MemoryStore.discoverHypotheses()` are mirrored into the same research cluster store using stable `local-hypothesis:<id>` identities. Repeated scans update in place instead of adding support; local hypotheses carry rule/evidence/status/version in their basis and receive no invented web URLs. Similarity may link a hypothesis to source observations, but never makes the hypothesis independent web evidence.
+- The cluster panel distinguishes local symbolic hypotheses from extracted web observations and labels the confidence value as an **heuristic score, not a probability of truth**.
+- This feature is entirely local after downloading public pages and requires no paid API key. Its takeaway generation is extractive/heuristic, not LLM-level synthesis.
+
+## v3.6.4 — Cautious findings and similarity clusters
+
+- An opt-in Android WorkManager cycle stores and notifies about the next useful task.
+- A persistent starter programme includes seven topics: chat/session continuity, agent loops, Android background limits, evidence quality, agent evaluation, measurable human-positive behavior, and phone-automation safety.
+- The Initiative screen lists goals and progress, accepts custom questions, runs a research task on demand, and saves reports plus source URLs.
+- Each usable excerpt becomes a separate **PRELIMINARY** observation with source URL, research question, timestamp, and deliberately low heuristic confidence (0.25). Similar-but-not-identical statements are attached to a shared topical cluster without being merged into one claim.
+- Likely numeric or negation-based contradictions are marked for review. These observations remain outside factual MemoryStore: they do not auto-promote facts or resolve conflicts.
+- Research reports with no usable extracted source text may be saved for diagnosis, but they do not count as progress and do not complete the topic. Daily research uses the same single ingestion path as manual research to avoid duplicate observations.
+- The cluster store exposes `addPreliminaryConclusion(...)` so a future reasoning/experiment stage can add its own cautious conclusion with basis, evidence URLs, and bounded confidence. The current web path extracts source observations; this API is not yet wired to an autonomous synthesis stage.
+- Research reduces long research briefs to compact topic keywords for web search and uses DuckDuckGo HTML/Lite, Bing, and Russian/English Wikipedia as fallback sources when fewer than three results contain snippets. If sources provide only empty links without usable page text or snippets, the research fails transparently and the topic remains incomplete. Provider diagnostics are shown on failure. **No OpenAI API key, paid API plan, or API credit is required.** Normal internet traffic still applies; public sites may rate-limit or change their markup.
+- The phone downloads a limited number of pages and builds an extractive report locally from relevant snippets/sentences. It is not an LLM-generated synthesis and cannot reliably establish source independence or truth; sources must be checked manually.
+- Initiative research sends no local MemoryStore contents to an AI service. Reports are stored separately and never auto-promote facts or resolve conflicts.
+- Successfully researched identical questions are skipped to avoid repeated requests. Daily mode is opt-in and runs at most one task per scheduled WorkManager cycle.
+- WorkManager is best-effort and Android may delay periodic execution. Notifications require permission on Android 13+.
+
 ## v1.5.0
 
 Adds a separate persistent learning model alongside MemoryStore:
@@ -55,3 +82,4 @@ Controlled Android execution layer: AccessibilityService, explicit OPEN_URL/CLIC
 
 
 CI trigger for Astra Bridge 3.3.3.
+\n\n## v3.7.0 — Free mentor handoff and durable continuity\n\n- New “Наставник ChatGPT (бесплатно)” screen prepares a bounded handoff package from the latest research report, preliminary clusters, checkpoint, user-confirmed decisions and recent events.\n- Android share sheet transfers the prompt only after the user chooses a target app; no API key or automatic upload is used. A clipboard fallback is provided.\n- Mentor replies can be pasted back and saved to app-private files: `CHECKPOINT.md`, `DECISIONS.md`, `EVENTS.jsonl`, `VERIFIED_FACTS.md`, and timestamped reply archives.\n- Imported mentor answers remain preliminary notes and do not modify factual MemoryStore or verified facts. A decision is added to `DECISIONS.md` only when the user explicitly checks the confirmation box.\n- Robolectric tests cover handoff contents, persistence, decision confirmation, and the no-auto-promotion boundary. Physical device/share-sheet behavior still needs a smoke test.\n
