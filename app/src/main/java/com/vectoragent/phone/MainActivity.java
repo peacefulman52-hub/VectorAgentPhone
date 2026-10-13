@@ -63,7 +63,13 @@ public class MainActivity extends Activity {
         chat.addView(tv("Разговор — чистый диалог. Служебные события обучения, конфликты и изменения гипотез смотрятся во вкладке «Память».",13));
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
         if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание."});
-        for(String[] m:chatTranscript) { if(!"Ты".equals(m[0])) lastAgentAnswer=m[1]; addBubbleView(m[0],m[1]); }
+        lastAgentAnswer="";
+        for(int i=0;i<chatTranscript.size();i++){
+            String[] m=chatTranscript.get(i);
+            // Index 0 is the default greeting, not a response to the current user task.
+            if(i>0 && m.length>1 && "Агент".equals(m[0]) && m[1]!=null && !m[1].trim().isEmpty()) lastAgentAnswer=m[1];
+            addBubbleView(m[0],m[1]);
+        }
         copyLastAnswer=btn("📋 Скопировать последний ответ");
         copyLastAnswer.setTextSize(16);
         copyLastAnswer.setEnabled(!lastAgentAnswer.isEmpty());
@@ -137,12 +143,15 @@ public class MainActivity extends Activity {
 
     LinearLayout chatHistory;
     void copyLatestAgentAnswer(){
-        String text=lastAgentAnswer==null?"":lastAgentAnswer.trim();
-        if(text.isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
+        String text=lastAgentAnswer==null?"":lastAgentAnswer;
+        if(text.trim().isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
         ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         if(clipboard==null){ Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show(); return; }
         clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
         Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
+    }
+    boolean isCopyableAnswer(String who,String text){
+        return "Агент".equals(who) && text!=null && !text.trim().isEmpty();
     }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
