@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
     }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
-        if(!"Ты".equals(who)){ lastAgentAnswer=text; if(copyLastAnswer!=null) copyLastAnswer.setEnabled(true); }
+        if(isCopyableAnswer(who,text)){ lastAgentAnswer=text; if(copyLastAnswer!=null) copyLastAnswer.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
