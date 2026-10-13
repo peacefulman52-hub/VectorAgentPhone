@@ -3,6 +3,8 @@ package com.vectoragent.phone;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.SharedPreferences;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.graphics.Color;
@@ -138,6 +140,19 @@ public class MainActivity extends Activity {
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(dp(10),dp(8),dp(10),dp(8));
         TextView h=tv(who,12); h.setTypeface(Typeface.DEFAULT,Typeface.BOLD); h.setTextColor(Color.rgb(30,90,120)); row.addView(h);
         TextView bb=tv(text,15); bb.setBackground(bg(who.equals("Ты")?Color.rgb(232,242,250):Color.rgb(242,242,242),18)); row.addView(bb);
+        if(!"Ты".equals(who)){
+            Button copy=btn("📋 Скопировать ответ");
+            copy.setOnClickListener(v->{
+                ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                if(clipboard!=null){
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
+                    Toast.makeText(this,"Ответ скопирован",Toast.LENGTH_SHORT).show();
+                }else{
+                    Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show();
+                }
+            });
+            row.addView(copy);
+        }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(5),0,dp(5)); chatHistory.addView(row,lp);
     }
     String memoryAnswer(String q){
