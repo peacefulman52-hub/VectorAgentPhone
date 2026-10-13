@@ -62,8 +62,8 @@ public class MainActivity extends Activity {
         TextView intro=tv("Локальный обучающий агент",18); intro.setTypeface(Typeface.DEFAULT,Typeface.BOLD); chat.addView(intro);
         chat.addView(tv("Разговор — чистый диалог. Служебные события обучения, конфликты и изменения гипотез смотрятся во вкладке «Память».",13));
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
-        if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание."});
-        for(String[] m:chatTranscript) { if(!"Ты".equals(m[0])) lastAgentAnswer=m[1]; addBubbleView(m[0],m[1]); }
+        if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.","__welcome_placeholder__"});
+        lastAgentAnswer = ""; for(String[] m:chatTranscript) { if(!"Ты".equals(m[0]) && !(m.length > 2 && "__welcome_placeholder__".equals(m[2]))) lastAgentAnswer=m[1]; addBubbleView(m[0],m[1]); }
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
