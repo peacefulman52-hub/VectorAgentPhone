@@ -68,6 +68,8 @@ public class MainActivity extends Activity {
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
         sendRow.addView(send,new LinearLayout.LayoutParams(0,dp(52),1)); sendRow.addView(clear,new LinearLayout.LayoutParams(0,dp(52),1)); chat.addView(sendRow);
+        copyLastAnswerButton=btn("📋 Скопировать последний ответ"); copyLastAnswerButton.setTextSize(16); copyLastAnswerButton.setEnabled(!lastAgentAnswer.isEmpty()); chat.addView(copyLastAnswerButton);
+        copyLastAnswerButton.setOnClickListener(v->copyLastAgentAnswer());
         send.setOnClickListener(v->sendToAgent()); clear.setOnClickListener(v->chatInput.setText(""));
         Button webLearn=btn("🌱 Проверить кандидата внешними источниками"); chat.addView(webLearn); webLearn.setOnClickListener(v->runWebTeacher());
     }
@@ -133,6 +135,7 @@ public class MainActivity extends Activity {
     LinearLayout chatHistory;
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
+        if(!"Ты".equals(who)){ lastAgentAnswer=text; if(copyLastAnswerButton!=null) copyLastAnswerButton.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
