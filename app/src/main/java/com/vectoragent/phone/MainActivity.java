@@ -27,7 +27,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>(); ArrayList<String[]> chatTranscript = new ArrayList<>();
-    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; Button copyLastAnswer;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -64,6 +64,10 @@ public class MainActivity extends Activity {
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
         if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание."});
         for(String[] m:chatTranscript) addBubbleView(m[0],m[1]);
+        copyLastAnswer=btn("📋 Скопировать последний ответ агента");
+        copyLastAnswer.setTextSize(15);
+        copyLastAnswer.setOnClickListener(v->copyLatestAgentAnswer());
+        chat.addView(copyLastAnswer);
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
@@ -131,6 +135,22 @@ public class MainActivity extends Activity {
     }
 
     LinearLayout chatHistory;
+    void copyLatestAgentAnswer(){
+        for(int i=chatTranscript.size()-1;i>=0;i--){
+            String[] message=chatTranscript.get(i);
+            if(message.length>1 && !"Ты".equals(message[0]) && message[1]!=null && !message[1].trim().isEmpty()){
+                ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                if(clipboard!=null){
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",message[1]));
+                    Toast.makeText(this,"Ответ агента скопирован",Toast.LENGTH_SHORT).show();
+                }else{
+                    Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+        }
+        Toast.makeText(this,"Ответа агента пока нет",Toast.LENGTH_SHORT).show();
+    }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
         if(chatHistory!=null) addBubbleView(who,text);
@@ -140,19 +160,7 @@ public class MainActivity extends Activity {
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(dp(10),dp(8),dp(10),dp(8));
         TextView h=tv(who,12); h.setTypeface(Typeface.DEFAULT,Typeface.BOLD); h.setTextColor(Color.rgb(30,90,120)); row.addView(h);
         TextView bb=tv(text,15); bb.setBackground(bg(who.equals("Ты")?Color.rgb(232,242,250):Color.rgb(242,242,242),18)); row.addView(bb);
-        if(!"Ты".equals(who)){
-            Button copy=btn("📋 Скопировать ответ");
-            copy.setOnClickListener(v->{
-                ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                if(clipboard!=null){
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
-                    Toast.makeText(this,"Ответ скопирован",Toast.LENGTH_SHORT).show();
-                }else{
-                    Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show();
-                }
-            });
-            row.addView(copy);
-        }
+
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(5),0,dp(5)); chatHistory.addView(row,lp);
     }
     String memoryAnswer(String q){
