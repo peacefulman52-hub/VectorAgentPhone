@@ -27,7 +27,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>(); ArrayList<String[]> chatTranscript = new ArrayList<>();
-    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; Button copyLastAnswer;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; String lastAgentAnswer = ""; Button copyLastAnswer;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -63,9 +63,10 @@ public class MainActivity extends Activity {
         chat.addView(tv("Разговор — чистый диалог. Служебные события обучения, конфликты и изменения гипотез смотрятся во вкладке «Память».",13));
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
         if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание."});
-        for(String[] m:chatTranscript) addBubbleView(m[0],m[1]);
-        copyLastAnswer=btn("📋 Скопировать последний ответ агента");
-        copyLastAnswer.setTextSize(15);
+        for(String[] m:chatTranscript) { if(!"Ты".equals(m[0])) lastAgentAnswer=m[1]; addBubbleView(m[0],m[1]); }
+        copyLastAnswer=btn("📋 Скопировать последний ответ");
+        copyLastAnswer.setTextSize(16);
+        copyLastAnswer.setEnabled(!lastAgentAnswer.isEmpty());
         copyLastAnswer.setOnClickListener(v->copyLatestAgentAnswer());
         chat.addView(copyLastAnswer);
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
@@ -136,23 +137,16 @@ public class MainActivity extends Activity {
 
     LinearLayout chatHistory;
     void copyLatestAgentAnswer(){
-        for(int i=chatTranscript.size()-1;i>=0;i--){
-            String[] message=chatTranscript.get(i);
-            if(message.length>1 && !"Ты".equals(message[0]) && message[1]!=null && !message[1].trim().isEmpty()){
-                ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                if(clipboard!=null){
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",message[1]));
-                    Toast.makeText(this,"Ответ агента скопирован",Toast.LENGTH_SHORT).show();
-                }else{
-                    Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show();
-                }
-                return;
-            }
-        }
-        Toast.makeText(this,"Ответа агента пока нет",Toast.LENGTH_SHORT).show();
+        String text=lastAgentAnswer==null?"":lastAgentAnswer.trim();
+        if(text.isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
+        ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(clipboard==null){ Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show(); return; }
+        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
+        Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
     }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
+        if(!"Ты".equals(who)){ lastAgentAnswer=text; if(copyLastAnswer!=null) copyLastAnswer.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
