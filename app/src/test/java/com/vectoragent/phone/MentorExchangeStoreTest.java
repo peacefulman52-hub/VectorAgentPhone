@@ -21,6 +21,8 @@ public class MentorExchangeStoreTest {
     @Before public void setUp() {
         context = RuntimeEnvironment.getApplication();
         deleteRecursively(new File(context.getFilesDir(), "mentor-memory"));
+        context.getSharedPreferences("vector_initiative_agenda", Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences("vector_research_knowledge", Context.MODE_PRIVATE).edit().clear().commit();
     }
 
     @Test public void handoffIncludesLatestResearchAndSafetyRules() {
