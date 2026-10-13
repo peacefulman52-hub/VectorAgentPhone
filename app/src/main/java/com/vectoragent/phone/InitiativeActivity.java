@@ -2,6 +2,8 @@ package com.vectoragent.phone;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -83,6 +85,22 @@ public final class InitiativeActivity extends Activity {
         researchView.setAutoLinkMask(Linkify.WEB_URLS);
         researchView.setMovementMethod(LinkMovementMethod.getInstance());
         root.addView(researchView);
+        Button copyResearch = btn("📋 Скопировать ответ исследования");
+        root.addView(copyResearch);
+        copyResearch.setOnClickListener(v -> {
+            String answer = researchView.getText().toString();
+            if (answer.trim().isEmpty()) {
+                Toast.makeText(this, "Пока нечего копировать", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("Ответ исследования Astra", answer));
+                Toast.makeText(this, "Ответ исследования скопирован", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Не удалось открыть буфер обмена", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         root.addView(tv("Накопленные кластеры предварительных выводов", 18));
         knowledgeView = tv(ResearchKnowledgeStore.summaryText(this), 13);
