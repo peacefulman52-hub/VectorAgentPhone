@@ -63,7 +63,12 @@ public class MainActivity extends Activity {
         chat.addView(tv("Разговор — чистый диалог. Служебные события обучения, конфликты и изменения гипотез смотрятся во вкладке «Память».",13));
         chatHistory=new LinearLayout(this); chatHistory.setOrientation(LinearLayout.VERTICAL); chat.addView(chatHistory);
         if(chatTranscript.isEmpty()) chatTranscript.add(new String[]{"Агент","Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.","__welcome_placeholder__"});
-        lastAgentAnswer = ""; for(String[] m:chatTranscript) { if(!"Ты".equals(m[0]) && !(m.length > 2 && "__welcome_placeholder__".equals(m[2]))) lastAgentAnswer=m[1]; addBubbleView(m[0],m[1]); }
+        lastAgentAnswer = "";
+        for(String[] m:chatTranscript) {
+            boolean welcomePlaceholder = m.length > 2 && "__welcome_placeholder__".equals(m[2]);
+            if(!welcomePlaceholder && m.length > 1 && isCopyableAnswer(m[0],m[1])) lastAgentAnswer=m[1];
+            addBubbleView(m[0],m[1]);
+        }
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
@@ -133,9 +138,18 @@ public class MainActivity extends Activity {
     }
 
     LinearLayout chatHistory;
+    boolean isCopyableAnswer(String who,String text){
+        if(text==null || text.trim().isEmpty()) return false;
+        if("Агент".equals(who)) {
+            return !text.equals("Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.");
+        }
+        // In chat, only the completed research report is an answer; progress/errors are not.
+        return "Веб-исследователь".equals(who)
+                && text.startsWith("Результат бесплатного веб-исследования:");
+    }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
-        if(!"Ты".equals(who)){ lastAgentAnswer=text; if(copyLastAnswerButton!=null) copyLastAnswerButton.setEnabled(true); }
+        if(isCopyableAnswer(who,text)){ lastAgentAnswer=text; if(copyLastAnswerButton!=null) copyLastAnswerButton.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
@@ -146,8 +160,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(5),0,dp(5)); chatHistory.addView(row,lp);
     }
     void copyLastAgentAnswer(){
-        String text=lastAgentAnswer==null?"":lastAgentAnswer.trim();
-        if(text.isEmpty()){ toast("Пока нет ответа для копирования"); return; }
+        String text=lastAgentAnswer==null?"":lastAgentAnswer;
+        if(text.trim().isEmpty()){ toast("Пока нет ответа для копирования"); return; }
         ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         if(clipboard==null){ toast("Не удалось открыть буфер обмена"); return; }
         clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
