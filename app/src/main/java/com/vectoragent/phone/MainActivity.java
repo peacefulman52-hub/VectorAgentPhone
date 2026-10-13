@@ -27,7 +27,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     SharedPreferences prefs; ArrayList<String> contextLog = new ArrayList<>(); ArrayList<String[]> chatTranscript = new ArrayList<>();
-    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; String lastAgentAnswer = ""; Button copyLastAnswer;
+    MemoryStore store; AgentEngine agent; LinearLayout root,content,chat,list; EditText chatInput; SeekBar confidence; TextView confLabel,stats; Switch auto; String lastAgentAnswer = ""; Button copyLastAnswerButton;
     void clearContent(){ if(content!=null) content.removeAllViews(); }
     void loadContext(){prefs=getSharedPreferences("vector_context",MODE_PRIVATE);String raw=prefs.getString("log","");if(!raw.isEmpty())for(String s:raw.split("\\n",-1))if(!s.trim().isEmpty())contextLog.add(s);}
     void saveContext(){StringBuilder s=new StringBuilder();for(String x:contextLog)s.append(x).append("\\n");prefs.edit().putString("log",s.toString()).apply();}
@@ -67,14 +67,14 @@ public class MainActivity extends Activity {
         for(int i=0;i<chatTranscript.size();i++){
             String[] m=chatTranscript.get(i);
             // Index 0 is the default greeting, not a response to the current user task.
-            if(i>0 && m.length>1 && "Агент".equals(m[0]) && m[1]!=null && !m[1].trim().isEmpty()) lastAgentAnswer=m[1];
+            if(i>0 && m.length>1 && isCopyableAnswer(m[0],m[1])) lastAgentAnswer=m[1];
             addBubbleView(m[0],m[1]);
         }
-        copyLastAnswer=btn("📋 Скопировать последний ответ");
-        copyLastAnswer.setTextSize(16);
-        copyLastAnswer.setEnabled(!lastAgentAnswer.isEmpty());
-        copyLastAnswer.setOnClickListener(v->copyLatestAgentAnswer());
-        chat.addView(copyLastAnswer);
+        copyLastAnswerButton=btn("📋 Скопировать последний ответ");
+        copyLastAnswerButton.setTextSize(16);
+        copyLastAnswerButton.setEnabled(!lastAgentAnswer.isEmpty());
+        copyLastAnswerButton.setOnClickListener(v->copyLatestAgentAnswer());
+        chat.addView(copyLastAnswerButton);
         chatInput=new EditText(this); chatInput.setHint("Сообщение…"); chatInput.setMinLines(2); chatInput.setGravity(48);
         chat.addView(chatInput,new LinearLayout.LayoutParams(-1,dp(82)));
         LinearLayout sendRow=new LinearLayout(this); Button send=btn("➤  Отправить"),clear=btn("Очистить"); send.setTextSize(16);
@@ -147,15 +147,22 @@ public class MainActivity extends Activity {
         if(text.trim().isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
         ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         if(clipboard==null){ Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show(); return; }
-        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ агента",text));
+        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ Astra",text));
         Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
     }
     boolean isCopyableAnswer(String who,String text){
-        return "Агент".equals(who) && text!=null && !text.trim().isEmpty();
+        if(text==null || text.trim().isEmpty()) return false;
+        String answer=text.trim();
+        if("Агент".equals(who)) {
+            return !"Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.".equals(answer);
+        }
+        // Ignore search progress/service chatter, but allow the completed result block to be copied.
+        return "Веб-исследователь".equals(who)
+                && answer.startsWith("Результат бесплатного веб-исследования:");
     }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
-        if(isCopyableAnswer(who,text)){ lastAgentAnswer=text; if(copyLastAnswer!=null) copyLastAnswer.setEnabled(true); }
+        if(isCopyableAnswer(who,text)){ lastAgentAnswer=text; if(copyLastAnswerButton!=null) copyLastAnswerButton.setEnabled(true); }
         if(chatHistory!=null) addBubbleView(who,text);
     }
     void addBubbleView(String who,String text){
