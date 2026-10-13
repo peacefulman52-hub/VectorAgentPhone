@@ -151,7 +151,8 @@ public class MainActivity extends Activity {
         Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
     }
     boolean isCopyableAnswer(String who,String text){
-        return "Агент".equals(who) && text!=null && !text.trim().isEmpty();
+        return "Агент".equals(who) && text!=null && !text.trim().isEmpty()
+                && !text.equals("Готов. Я отвечаю из накопленной памяти и не выдаю генерацию за знание.");
     }
     void addBubble(String who,String text){
         chatTranscript.add(new String[]{who,text});
