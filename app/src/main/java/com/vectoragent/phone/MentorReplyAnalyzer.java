@@ -72,6 +72,9 @@ public final class MentorReplyAnalyzer {
             String line = rawLine.trim();
             if (line.isEmpty()) continue;
             line = line.replaceFirst("^[#>*•\\-]+\\s*", "").trim();
+            // Remove a numbered-list prefix before sentence splitting so "1. Claim"
+            // is not mistaken for a standalone sentence containing only "1.".
+            line = line.replaceFirst("^\\d+[.)]\\s*", "").trim();
             if (line.isEmpty()) continue;
             if (isHeading(line.toLowerCase(Locale.ROOT))) continue;
 
@@ -84,7 +87,8 @@ public final class MentorReplyAnalyzer {
                 String lower = sentence.toLowerCase(Locale.ROOT);
                 boolean classified = false;
 
-                if (containsAny(lower, "эксперимент", "проверь", "проверить", "тест", "ожидаемый результат",
+                if (containsAny(lower, "эксперимент", "проверь", "проверить", "проверка", "проверки",
+                        "проверку", "проверять", "проверил", "проверены", "тест", "ожидаемый результат",
                         "критерий успех", "перезапуск", "experiment", "test", "verify")) {
                     addUnique(a.experiments, sentence);
                     classified = true;
@@ -102,11 +106,16 @@ public final class MentorReplyAnalyzer {
                     classified = true;
                 }
                 if (containsAny(lower, "статус:", "источник:", "контрольная фраза:", "ожидаемое действие:",
-                        "важно:", "это диагностическое сообщение")) {
+                        "важно:", "это диагностическое сообщение", "основание:", "обоснован",
+                        "наблюдение", "наблюдал", "утверждение:", "утверждается", "вывод:",
+                        "гипотеза:", "предположение:", "данные показывают", "claim:", "observation:")) {
                     addUnique(a.claims, sentence);
                     classified = true;
                 }
-                if (!classified && sentence.length() >= 35) {
+                // Preserve even short unclassified sentences in the report. The full
+                // original is stored separately, but silently dropping short statements
+                // would make the analysis look more complete than it really is.
+                if (!classified) {
                     addUnique(a.unclassified, sentence);
                 }
             }
