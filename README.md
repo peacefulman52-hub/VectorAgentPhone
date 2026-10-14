@@ -1,8 +1,8 @@
 # Энтропия (VectorAgentPhone) — local-first learning agent
 
-The product is now named **Энтропия**. The Android application ID and package stay unchanged so this release can upgrade the existing installation. The learning roadmap and safety boundaries are documented in [`ENTROPIA_LEARNING_PROTOCOL.md`](ENTROPIA_LEARNING_PROTOCOL.md).
+The product is named **Энтропия**. The Android application ID and package remain unchanged. An in-place upgrade also requires the existing and new APKs to share a signing certificate; the branch-scoped debug key is stable for future builds, but may differ from older ephemeral CI APKs. Export `MemoryStore` to JSON before switching signing identities, then import it after installation. The learning roadmap and safety boundaries are documented in [`ENTROPIA_LEARNING_PROTOCOL.md`](ENTROPIA_LEARNING_PROTOCOL.md).
 
-**Current milestone:** v3.8.0 renames the app and establishes a durable, testable learning protocol. It does not yet mean every stage of the autonomous research loop is implemented.
+**Current milestone:** v3.8.2 adds a visible, offline mentor-reply triage report and regression checks. Replies are archived separately, are not promoted into factual `MemoryStore` or `VERIFIED_FACTS`, and only enter `DECISIONS.md` after explicit user confirmation. The triage uses deterministic keywords and sentence splitting; it is not semantic understanding or source verification. The autonomous research loop still needs physical-device validation and further development.
 
 # Vector Agent Phone 1.6.2
 
@@ -27,7 +27,7 @@ v0.9.2 adds a controlled self-learning loop: repeated similar non-conflicting ob
 
 ## Build
 
-GitHub Actions produces an installable debug APK.
+GitHub Actions produces a debug APK after unit tests and verifies the APK signing certificate against the branch-scoped debug keystore. This is a test build, not a production release-signed APK.
 
 ## v3.6.6 — Cautious takeaways, local hypothesis clusters and tests
 

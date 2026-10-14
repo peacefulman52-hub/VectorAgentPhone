@@ -93,14 +93,22 @@ public final class MentorExchangeStore {
         // Deterministic offline lexical triage; not semantic understanding or fact verification.
         MentorReplyAnalyzer.Analysis analysis = MentorReplyAnalyzer.analyze(text);
         long now = System.currentTimeMillis();
-        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date(now));
+        String stampBase = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.ROOT).format(new Date(now));
+        String stamp = stampBase;
+        File archiveDir = repliesDir(context);
+        File savedReply = new File(archiveDir, "mentor-reply-" + stamp + ".md");
+        File savedAnalysis = new File(archiveDir, "mentor-analysis-" + stamp + ".md");
+        int collisionSuffix = 1;
+        while (savedReply.exists() || savedAnalysis.exists()) {
+            stamp = stampBase + "-" + collisionSuffix++;
+            savedReply = new File(archiveDir, "mentor-reply-" + stamp + ".md");
+            savedAnalysis = new File(archiveDir, "mentor-analysis-" + stamp + ".md");
+        }
         String content = "# Ответ наставника — " + stamp + "\n\n"
                 + "Статус: PRELIMINARY / НЕ ПРОВЕРЕНО. Источник: ручной обмен с ChatGPT.\n\n"
                 + "Важно: этот текст сам по себе не является независимым доказательством и не изменяет фактическую память.\n\n"
                 + text + "\n";
         String analysisText = analysis.toMarkdown();
-        File savedReply = new File(repliesDir(context), "mentor-reply-" + stamp + ".md");
-        File savedAnalysis = new File(repliesDir(context), "mentor-analysis-" + stamp + ".md");
         if (!write(savedReply, content) || !write(file(context, LATEST_REPLY), content)
                 || !write(savedAnalysis, analysisText) || !write(file(context, LATEST_ANALYSIS), analysisText)) {
             return "Не удалось сохранить ответ и отчёт обработки в локальную память приложения.";

@@ -2,6 +2,7 @@ package com.vectoragent.phone;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -60,11 +61,36 @@ public class MentorExchangeStoreTest {
         assertEquals(initialFacts, new MemoryStore(context).all().size());
     }
 
+    @Test public void rapidMentorRepliesKeepSeparateArchiveFiles() {
+        String first = "Первый ответ наставника содержит достаточно длинный текст для отдельной архивной записи.";
+        String second = "Второй ответ наставника содержит другой текст для отдельной архивной записи.";
+        assertTrue(MentorExchangeStore.importMentorReply(context, first, false).startsWith("Обработка завершена"));
+        assertTrue(MentorExchangeStore.importMentorReply(context, second, false).startsWith("Обработка завершена"));
+
+        File archiveDir = new File(MentorExchangeStore.storageDir(context), "replies");
+        File[] originals = archiveDir.listFiles((dir, name) ->
+                name.startsWith("mentor-reply-") && name.endsWith(".md"));
+        File[] analyses = archiveDir.listFiles((dir, name) ->
+                name.startsWith("mentor-analysis-") && name.endsWith(".md"));
+        assertNotNull("Original reply archive should exist", originals);
+        assertNotNull("Analysis archive should exist", analyses);
+        assertEquals("Both mentor replies must keep separate original files", 2, originals.length);
+        assertEquals("Both mentor replies must keep separate analysis files", 2, analyses.length);
+        assertTrue("First reply must remain archived", anyFileContains(originals, first));
+        assertTrue("Second reply must remain archived", anyFileContains(originals, second));
+    }
+
     @Test public void decisionLogChangesOnlyAfterExplicitUserConfirmation() {
         String reply = "Проводить следующий эксперимент только после фиксации измеримых критериев успеха.";
         MentorExchangeStore.importMentorReply(context, reply, true);
         assertTrue(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains("подтверждено пользователем"));
         assertTrue(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains(reply));
+    }
+
+    private static boolean anyFileContains(File[] files, String value) {
+        if (files == null) return false;
+        for (File file : files) if (read(file).contains(value)) return true;
+        return false;
     }
 
     private static String read(File file) {
