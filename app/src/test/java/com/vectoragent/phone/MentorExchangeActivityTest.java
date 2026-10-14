@@ -43,17 +43,30 @@ public class MentorExchangeActivityTest {
         String analysis = MentorExchangeStore.latestAnalysis(activity);
         assertTrue("Analysis should detect the control marker", analysis.contains("MENTOR-7319"));
         assertTrue("Analysis should disclose its limitations", analysis.contains("НЕ семантическое понимание"));
-        assertTrue("Analysis should classify the suggested check", analysis.contains("Эксперименты/проверки"));
-        assertTrue("The recommendation should be classified separately from the experiment",
-                analysis.contains("Наставник рекомендует проверить восстановление решения"));
+        assertTrue("The test action must be present in the experiment section",
+                sectionContains(analysis, "## Эксперименты/проверки", "Наставник рекомендует проверить восстановление решения"));
+        assertTrue("The action should also be retained in recommendations",
+                sectionContains(analysis, "## Рекомендации", "Наставник рекомендует проверить восстановление решения"));
         assertTrue("The protective instruction should be retained as a recommendation",
-                analysis.contains("Не добавляй в VERIFIED_FACTS"));
+                sectionContains(analysis, "## Рекомендации", "Не добавляй в VERIFIED_FACTS"));
+        assertTrue("The control marker's sentence should be classified as a claim",
+                sectionContains(analysis, "## Утверждения/наблюдения", "Контрольная фраза: MENTOR-7319"));
         assertTrue("Successful processing should clear the input field", input.getText().toString().isEmpty());
         assertNotNull("The on-screen report should refresh after processing",
                 findTextContaining(activity.getWindow().getDecorView(), "# Отчёт локальной обработки ответа наставника"));
         assertFalse(read(MentorExchangeStore.file(activity, "VERIFIED_FACTS.md")).contains(reply));
         assertFalse("Mentor text must not be injected into ordinary research knowledge",
                 ResearchKnowledgeStore.summaryText(activity).contains(reply));
+    }
+
+    private static boolean sectionContains(String markdown, String heading, String value) {
+        int start = markdown.indexOf(heading);
+        if (start < 0) return false;
+        int bodyStart = markdown.indexOf('\n', start);
+        if (bodyStart < 0) return false;
+        int next = markdown.indexOf("\n## ", bodyStart + 1);
+        String section = next < 0 ? markdown.substring(bodyStart + 1) : markdown.substring(bodyStart + 1, next);
+        return section.contains(value);
     }
 
     private static TextView findTextContaining(View view, String fragment) {
