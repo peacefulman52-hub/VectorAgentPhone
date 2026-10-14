@@ -13,7 +13,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Local, no-API-key handoff between Astra and a human-operated ChatGPT session.
+ * Local, no-API-key handoff between Entropia and a human-operated ChatGPT session.
  * Mentor replies are saved as review notes and preliminary conclusions only:
  * they are never written into factual MemoryStore or VERIFIED_FACTS.md automatically.
  */
@@ -61,17 +61,17 @@ public final class MentorExchangeStore {
         updateCheckpoint(context, "Пакет контекста подготовлен для ручной проверки наставником", latest);
 
         StringBuilder prompt = new StringBuilder();
-        prompt.append("ЗАДАЧА: ты выступаешь наставником и проверяющим для локального Android-агента Astra.\n")
+        prompt.append("ЗАДАЧА: ты выступаешь наставником и проверяющим для локального Android-агента Энтропии.\n")
                 .append("Это ручной обмен текстом; у тебя нет прямого доступа к приложению и ты не должен заявлять, что изменил его.\n")
                 .append("Проверь данные критически. Разделяй проверенные сведения, предварительные наблюдения, гипотезы и собственные предположения. ")
                 .append("Не считай совпадение страниц независимым подтверждением, если они могут копировать один источник. ")
                 .append("Не выдумывай открытые страницы, цитаты, ссылки или результаты тестов. ")
-                .append("Не превращай свой ответ в факт приложения: Astra сохранит его как предварительную заметку, пока пользователь отдельно не проверит выводы.\n\n")
+                .append("Не превращай свой ответ в факт приложения: Энтропия сохранит его как предварительную заметку, пока пользователь отдельно не проверит выводы.\n\n")
                 .append("ВЕРНИ ОТВЕТ В СТРУКТУРЕ:\n")
                 .append("1. Что в отчёте обосновано, а что пока не доказано.\n")
                 .append("2. Ошибки, противоречия и возможные зависимости источников.\n")
                 .append("3. Что нужно проверить по первоисточникам (с конкретными URL, если они известны).\n")
-                .append("4. Один ближайший эксперимент для Astra: действие, ожидаемый результат и критерий успеха/неуспеха.\n")
+                .append("4. Один ближайший эксперимент для Энтропии: действие, ожидаемый результат и критерий успеха/неуспеха.\n")
                 .append("5. Какие изменения памяти предложить: тип записи, краткое содержание, основание и статус проверки. Не предлагай автоматическую запись в VERIFIED_FACTS.\n\n")
                 .append("=== CHECKPOINT ===\n").append(readTail(file(context, CHECKPOINT), 2200))
                 .append("\n\n=== PREVIOUS DECISIONS (user-confirmed only) ===\n").append(readTail(file(context, DECISIONS), 1800))
@@ -155,7 +155,7 @@ public final class MentorExchangeStore {
         String text = "# CHECKPOINT.md\n\n"
                 + "Updated: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.ROOT).format(new Date()) + "\n\n"
                 + "## Current goal\n"
-                + "Создать проверяемый бесплатный цикл обучения Astra через ручной обмен с наставником без платного API.\n\n"
+                + "Создать проверяемый бесплатный цикл обучения Энтропии через ручной обмен с наставником без платного API.\n\n"
                 + "## Current state\n- " + status + "\n"
                 + "- Последний отчёт: " + (first.isEmpty() ? "пока нет" : first) + "\n"
                 + "- Ответы наставника сохраняются в mentor-memory/replies и индексируются только как PRELIMINARY.\n"
