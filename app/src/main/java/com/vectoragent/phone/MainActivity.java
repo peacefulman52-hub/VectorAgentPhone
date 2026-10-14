@@ -41,8 +41,8 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b){super.onCreate(b);store=new MemoryStore(this);agent=new AgentEngine(store);loadContext();build();showChat();}
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
-        LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("VECTOR",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v3.7.0 • память → наставник → проверка → эксперимент → обучение",12));
+        LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("ЭНТРОПИЯ",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
+        root.addView(tv("v3.8.0 • память → наставник → проверка → эксперимент → обучение",12));
         LinearLayout row1=new LinearLayout(this);row1.setGravity(Gravity.CENTER);
         Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор");
         for(Button b:new Button[]{chatMode,memMode,srcMode,genMode})row1.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
         Button setMode=btn("⚙ Настройки"),teacherMode=btn("🎓 Учитель"),learningMode=btn("🧬 Обучение"),labMode=btn("🧪 Лаборатория");
         for(Button b:new Button[]{setMode,teacherMode,learningMode,labMode})row2.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
         root.addView(row2);
-        Button astraMode=btn("🛰 Astra Bridge"); astraMode.setTextSize(15); root.addView(astraMode);
+        Button astraMode=btn("🛰 Энтропия: управление устройством"); astraMode.setTextSize(15); root.addView(astraMode);
         Button initiativeMode=btn("🧭 Самостоятельная инициатива"); initiativeMode.setTextSize(15); root.addView(initiativeMode);
         Button mentorMode=btn("🤝 Наставник ChatGPT (бесплатно)"); mentorMode.setTextSize(15); root.addView(mentorMode);
         chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class))); initiativeMode.setOnClickListener(v->startActivity(new Intent(this,InitiativeActivity.class))); mentorMode.setOnClickListener(v->startActivity(new Intent(this,MentorExchangeActivity.class)));
@@ -148,7 +148,7 @@ public class MainActivity extends Activity {
         if(text.trim().isEmpty()){ Toast.makeText(this,"Пока нет ответа для копирования",Toast.LENGTH_SHORT).show(); return; }
         ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         if(clipboard==null){ Toast.makeText(this,"Не удалось открыть буфер обмена",Toast.LENGTH_SHORT).show(); return; }
-        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ Astra",text));
+        clipboard.setPrimaryClip(ClipData.newPlainText("Ответ Энтропии",text));
         Toast.makeText(this,"Последний ответ скопирован",Toast.LENGTH_SHORT).show();
     }
     boolean isCopyableAnswer(String who,String text){
