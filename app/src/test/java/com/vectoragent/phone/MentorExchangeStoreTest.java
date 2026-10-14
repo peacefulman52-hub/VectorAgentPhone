@@ -53,7 +53,7 @@ public class MentorExchangeStoreTest {
         assertTrue(status.contains("В обычные знания не добавлено"));
         assertTrue(MentorExchangeStore.latestReply(context).contains(reply));
         assertTrue(read(MentorExchangeStore.file(context, "LATEST_MENTOR_ANALYSIS.md")).contains("Отчёт локальной обработки"));
-        assertTrue(read(MentorExchangeStore.file(context, "EVENTS.jsonl")).contains("MENTOR_REPLY_IMPORTED"));
+        assertTrue(read(MentorExchangeStore.file(context, "EVENTS.jsonl")).contains("MENTOR_REPLY_ANALYZED"));
         assertFalse(read(MentorExchangeStore.file(context, "VERIFIED_FACTS.md")).contains(reply));
         assertFalse(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains(reply));
         assertEquals(initialFacts, new MemoryStore(context).all().size());
