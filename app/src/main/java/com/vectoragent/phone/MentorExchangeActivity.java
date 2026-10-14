@@ -24,7 +24,7 @@ import android.widget.Toast;
 public final class MentorExchangeActivity extends Activity {
     private EditText replyInput;
     private CheckBox confirmDecision;
-    private TextView status, latestReply;
+    private TextView status, latestReply, latestAnalysis;
     private Button processReply;
 
     private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
@@ -108,9 +108,13 @@ public final class MentorExchangeActivity extends Activity {
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
 
-        root.addView(tv("Последний сохранённый ответ", 18));
+        root.addView(tv("Последний сохранённый ответ (оригинал)", 18));
         latestReply = tv(MentorExchangeStore.latestReply(this), 13);
         root.addView(latestReply);
+
+        root.addView(tv("Отчёт обработки (локальный разбор)", 18));
+        latestAnalysis = tv(MentorExchangeStore.latestAnalysis(this), 13);
+        root.addView(latestAnalysis);
 
         Button copyLatest = btn("📋 Скопировать последний сохранённый ответ");
         root.addView(copyLatest);
@@ -124,7 +128,11 @@ public final class MentorExchangeActivity extends Activity {
 
         Button refresh = btn("↻ Обновить последний сохранённый ответ");
         root.addView(refresh);
-        refresh.setOnClickListener(v -> latestReply.setText(MentorExchangeStore.latestReply(this)));
+        refresh.setOnClickListener(v -> {
+            latestReply.setText(MentorExchangeStore.latestReply(this));
+            latestAnalysis.setText(MentorExchangeStore.latestAnalysis(this));
+            status.setText("Обновлены оригинал и отчёт обработки. Локальный разбор не подтверждает истинность утверждений.");
+        });
     }
 
     private void sharePrompt() {
@@ -153,6 +161,7 @@ public final class MentorExchangeActivity extends Activity {
             replyInput.setText("");
             confirmDecision.setChecked(false);
             latestReply.setText(MentorExchangeStore.latestReply(this));
+            latestAnalysis.setText(MentorExchangeStore.latestAnalysis(this));
             processReply.setEnabled(false);
         }
     }
