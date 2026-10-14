@@ -1,7 +1,7 @@
 name: Build APK
 on:
   push:
-    branches: [ main, vector-lab-2.0, research-engine-3.1, astra-bridge-3.2, hotfix-astra-open-url-crash-3.2.1, astra-link-3.3.0, feature/mentor-reply-process-button-3-8-1 ]
+    branches: [ main, vector-lab-2.0, research-engine-3.1, astra-bridge-3.2, hotfix-astra-open-url-crash-3.2.1, astra-link-3.3.0, feature/mentor-reply-process-button-3-8-1, feature/entropia-3-8-2-mentor-analysis ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -26,11 +26,11 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Entropia-3.8.1-apk
+          name: Entropia-3.8.2-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.8.1 app/build/outputs/apk/debug/app-debug.apk --title "Энтропия v3.8.1" --notes "Adds an explicit Process Mentor Reply button and safe preliminary-only import with regression coverage." || true
+          gh release create v3.8.2 app/build/outputs/apk/debug/app-debug.apk --title "Энтропия v3.8.2" --notes "Adds offline structural mentor-reply analysis, a visible report, and isolation from ordinary research knowledge." || true
