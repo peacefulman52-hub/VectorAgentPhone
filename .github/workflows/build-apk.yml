@@ -7,6 +7,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# Avoid wasting runner time on stale commits when the branch advances.
+concurrency:
+  group: entropia-apk-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,6 +20,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # Cache only this ref's debug key. No restore-keys: do not share it with PRs/other branches.
+      - name: Reuse branch-scoped debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: entropia-debug-signing-key-${{ github.ref_name }}-v1
       - uses: gradle/gradle-build-action@v3
         with:
           gradle-version: '8.7'
