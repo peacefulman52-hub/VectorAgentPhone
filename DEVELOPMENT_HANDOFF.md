@@ -1,5 +1,11 @@
-# Astra / VectorAgentPhone — Development Handoff
-Updated: 2026-10-13
+# Энтропия / VectorAgentPhone — Development Handoff
+Updated: 2026-10-14
+
+## 2026-10-14 — Entropia v3.8.0 learning direction
+
+- Product-facing app label and main screen are renamed to «Энтропия»; internal Android package and AccessibilityService class names intentionally remain stable to preserve upgrade compatibility.
+- New `ENTROPIA_LEARNING_PROTOCOL.md` defines the observe → compare → hypothesize → predict → safe test → evaluate → checkpoint cycle, source provenance, holdout discipline, memory boundaries, and safety constraints.
+- v3.8.0 is a rename + protocol milestone, not a claim that autonomous research cycles are fully implemented. Next step: wire checkpointed initiative research into explicit prediction/outcome records and regression tests, then validate the exact CI artifact on a physical Android device.
 
 ## 2026-10-13 — v3.7.0 free mentor exchange
 
