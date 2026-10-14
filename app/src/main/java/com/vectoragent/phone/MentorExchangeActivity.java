@@ -92,7 +92,7 @@ public final class MentorExchangeActivity extends Activity {
         root.addView(replyInput, new LinearLayout.LayoutParams(-1, dp(210)));
 
         confirmDecision = new CheckBox(this);
-        confirmDecision.setText("Я подтверждаю: сохранить рекомендацию в DECISIONS.md");
+        confirmDecision.setText("Я подтверждаю: сохранить этот ответ как рабочее решение в DECISIONS.md");
         confirmDecision.setTextSize(14);
         root.addView(confirmDecision);
 
@@ -157,7 +157,7 @@ public final class MentorExchangeActivity extends Activity {
         String result = MentorExchangeStore.importMentorReply(this, reply, confirmDecision.isChecked());
         status.setText(result);
         Toast.makeText(this, result, Toast.LENGTH_LONG).show();
-        if (result.startsWith("Ответ сохранён")) {
+        if (result.startsWith("Обработка завершена")) {
             replyInput.setText("");
             confirmDecision.setChecked(false);
             latestReply.setText(MentorExchangeStore.latestReply(this));
