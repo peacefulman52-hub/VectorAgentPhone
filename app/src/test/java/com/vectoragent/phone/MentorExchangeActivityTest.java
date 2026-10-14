@@ -44,9 +44,29 @@ public class MentorExchangeActivityTest {
         assertTrue("Analysis should detect the control marker", analysis.contains("MENTOR-7319"));
         assertTrue("Analysis should disclose its limitations", analysis.contains("НЕ семантическое понимание"));
         assertTrue("Analysis should classify the suggested check", analysis.contains("Эксперименты/проверки"));
+        assertTrue("The recommendation should be classified separately from the experiment",
+                analysis.contains("Наставник рекомендует проверить восстановление решения"));
+        assertTrue("The protective instruction should be retained as a recommendation",
+                analysis.contains("Не добавляй в VERIFIED_FACTS"));
+        assertTrue("Successful processing should clear the input field", input.getText().toString().isEmpty());
+        assertNotNull("The on-screen report should refresh after processing",
+                findTextContaining(activity.getWindow().getDecorView(), "# Отчёт локальной обработки ответа наставника"));
         assertFalse(read(MentorExchangeStore.file(activity, "VERIFIED_FACTS.md")).contains(reply));
         assertFalse("Mentor text must not be injected into ordinary research knowledge",
                 ResearchKnowledgeStore.summaryText(activity).contains(reply));
+    }
+
+    private static TextView findTextContaining(View view, String fragment) {
+        if (view instanceof TextView && ((TextView) view).getText().toString().contains(fragment)) {
+            return (TextView) view;
+        }
+        if (view instanceof ViewGroup) {
+            for (int i = 0; i < ((ViewGroup) view).getChildCount(); i++) {
+                TextView found = findTextContaining(((ViewGroup) view).getChildAt(i), fragment);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static <T extends View> T findView(View view, Class<T> type) {
