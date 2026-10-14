@@ -73,24 +73,42 @@ public final class MentorReplyAnalyzer {
             if (line.isEmpty()) continue;
             line = line.replaceFirst("^[#>*•\\-]+\\s*", "").trim();
             if (line.isEmpty()) continue;
-            String lower = line.toLowerCase(Locale.ROOT);
-            if (isHeading(lower)) continue;
-            if (containsAny(lower, "эксперимент", "проверь", "проверить", "тест", "ожидаемый результат",
-                    "критерий успех", "перезапуск", "контрольная фраза", "experiment", "test", "verify")) {
-                addUnique(a.experiments, line);
-            } else if (containsAny(lower, "не доказ", "сомнен", "не провер", "не утверждай", "не является",
-                    "ограничен", "возможно", "противореч", "недостаточно", "не считай", "uncertain",
-                    "not proven", "not verified", "limitation", "contradiction")) {
-                addUnique(a.doubts, line);
-            } else if (containsAny(lower, "рекоменд", "нужно", "следует", "предлага", "не добавляй",
-                    "сохрани", "записывай", "не записывай", "не изменяй", "не меняй", "действие:",
-                    "recommend", "should", "do not", "don't", "save", "avoid")) {
-                addUnique(a.recommendations, line);
-            } else if (containsAny(lower, "статус:", "источник:", "контрольная фраза:", "ожидаемое действие:",
-                    "важно:", "это диагностическое сообщение")) {
-                addUnique(a.claims, line);
-            } else if (line.length() >= 35) {
-                addUnique(a.unclassified, line);
+            if (isHeading(line.toLowerCase(Locale.ROOT))) continue;
+
+            // Classify sentence by sentence, not only by line. A single pasted paragraph
+            // may contain a claim, an experiment, and a safety instruction at once.
+            String[] sentences = SENTENCE.split(line);
+            for (String rawSentence : sentences) {
+                String sentence = rawSentence.trim();
+                if (sentence.isEmpty()) continue;
+                String lower = sentence.toLowerCase(Locale.ROOT);
+                boolean classified = false;
+
+                if (containsAny(lower, "эксперимент", "проверь", "проверить", "тест", "ожидаемый результат",
+                        "критерий успех", "перезапуск", "experiment", "test", "verify")) {
+                    addUnique(a.experiments, sentence);
+                    classified = true;
+                }
+                if (containsAny(lower, "не доказ", "сомнен", "не провер", "не утверждай", "не является",
+                        "ограничен", "возможно", "противореч", "недостаточно", "не считай", "uncertain",
+                        "not proven", "not verified", "limitation", "contradiction")) {
+                    addUnique(a.doubts, sentence);
+                    classified = true;
+                }
+                if (containsAny(lower, "рекоменд", "нужно", "следует", "предлага", "не добавляй",
+                        "сохрани", "записывай", "не записывай", "не изменяй", "не меняй", "действие:",
+                        "recommend", "should", "do not", "don't", "save", "avoid")) {
+                    addUnique(a.recommendations, sentence);
+                    classified = true;
+                }
+                if (containsAny(lower, "статус:", "источник:", "контрольная фраза:", "ожидаемое действие:",
+                        "важно:", "это диагностическое сообщение")) {
+                    addUnique(a.claims, sentence);
+                    classified = true;
+                }
+                if (!classified && sentence.length() >= 35) {
+                    addUnique(a.unclassified, sentence);
+                }
             }
         }
         return a;
