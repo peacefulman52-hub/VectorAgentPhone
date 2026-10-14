@@ -31,7 +31,7 @@ public class MentorExchangeActivityTest {
         EditText input = findView(activity.getWindow().getDecorView(), EditText.class);
         assertNotNull("Reply text field should be visible", input);
 
-        String reply = "Наставник рекомендует проверить восстановление решения после перезапуска приложения.";
+        String reply = "Контрольная фраза: MENTOR-7319. Наставник рекомендует проверить восстановление решения после перезапуска приложения. Не добавляй в VERIFIED_FACTS.";
         input.setText(reply);
 
         Button process = findButton(activity.getWindow().getDecorView(), "Обработать ответ наставника");
@@ -40,7 +40,13 @@ public class MentorExchangeActivityTest {
         process.performClick();
 
         assertTrue(MentorExchangeStore.latestReply(activity).contains(reply));
+        String analysis = MentorExchangeStore.latestAnalysis(activity);
+        assertTrue("Analysis should detect the control marker", analysis.contains("MENTOR-7319"));
+        assertTrue("Analysis should disclose its limitations", analysis.contains("НЕ семантическое понимание"));
+        assertTrue("Analysis should classify the suggested check", analysis.contains("Эксперименты/проверки"));
         assertFalse(read(MentorExchangeStore.file(activity, "VERIFIED_FACTS.md")).contains(reply));
+        assertFalse("Mentor text must not be injected into ordinary research knowledge",
+                ResearchKnowledgeStore.summaryText(activity).contains(reply));
     }
 
     private static <T extends View> T findView(View view, Class<T> type) {
