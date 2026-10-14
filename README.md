@@ -1,3 +1,9 @@
+# Энтропия (VectorAgentPhone) — local-first learning agent
+
+The product is now named **Энтропия**. The Android application ID and package stay unchanged so this release can upgrade the existing installation. The learning roadmap and safety boundaries are documented in [`ENTROPIA_LEARNING_PROTOCOL.md`](ENTROPIA_LEARNING_PROTOCOL.md).
+
+**Current milestone:** v3.8.0 renames the app and establishes a durable, testable learning protocol. It does not yet mean every stage of the autonomous research loop is implemented.
+
 # Vector Agent Phone 1.6.2
 
 Android prototype for controlled, provenance-aware memory.
