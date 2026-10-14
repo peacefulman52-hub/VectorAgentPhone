@@ -144,6 +144,12 @@ public final class MentorExchangeStore {
         return value.isEmpty() ? "Ответ наставника ещё не сохранялся." : value;
     }
 
+    public static synchronized String latestAnalysis(Context context) {
+        ensureFiles(context);
+        String value = read(file(context, LATEST_ANALYSIS));
+        return value.isEmpty() ? "Отчёта обработки пока нет. Вставь ответ и нажми «Обработать ответ наставника»." : value;
+    }
+
     private static void updateCheckpoint(Context context, String status, String report) {
         String first = report == null ? "" : report.split("\\n", 2)[0].trim();
         String text = "# CHECKPOINT.md\n\n"
