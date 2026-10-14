@@ -32,7 +32,7 @@ public class MentorExchangeActivityTest {
         EditText input = findView(activity.getWindow().getDecorView(), EditText.class);
         assertNotNull("Reply text field should be visible", input);
 
-        String reply = "Контрольная фраза: MENTOR-7319. Наставник рекомендует проверить восстановление решения после перезапуска приложения. Не добавляй в VERIFIED_FACTS.";
+        String reply = "Контрольная фраза: MENTOR-7319. Наставник рекомендует проверить восстановление решения после перезапуска приложения. Не добавляй в VERIFIED_FACTS.\n1. Короткая заметка.";
         input.setText(reply);
 
         Button process = findButton(activity.getWindow().getDecorView(), "Обработать ответ наставника");
@@ -52,6 +52,8 @@ public class MentorExchangeActivityTest {
                 sectionContains(analysis, "## Рекомендации", "Не добавляй в VERIFIED_FACTS"));
         assertTrue("The control marker's sentence should be classified as a claim",
                 sectionContains(analysis, "## Утверждения/наблюдения", "Контрольная фраза: MENTOR-7319"));
+        assertTrue("Numbered short statements must not disappear from the report",
+                sectionContains(analysis, "## Не удалось классифицировать автоматически", "Короткая заметка."));
         assertTrue("Successful processing should clear the input field", input.getText().toString().isEmpty());
         assertNotNull("The on-screen report should refresh after processing",
                 findTextContaining(activity.getWindow().getDecorView(), "# Отчёт локальной обработки ответа наставника"));
