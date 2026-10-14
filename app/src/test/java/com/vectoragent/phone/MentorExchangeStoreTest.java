@@ -36,6 +36,7 @@ public class MentorExchangeStoreTest {
 
         String prompt = MentorExchangeStore.buildMentorPrompt(context);
         assertTrue(prompt.contains("Тест преемственности"));
+        assertTrue("Handoff should use the current Entropia name", prompt.contains("Энтропии"));
         assertTrue(prompt.contains("Не превращай свой ответ в факт"));
         assertTrue(prompt.contains("VERIFIED_FACTS"));
         assertTrue(MentorExchangeStore.file(context, "CHECKPOINT.md").isFile());
