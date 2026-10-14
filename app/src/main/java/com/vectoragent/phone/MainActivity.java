@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("ЭНТРОПИЯ",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v3.8.0 • память → наставник → проверка → эксперимент → обучение",12));
+        root.addView(tv("v3.8.2 • память → наставник → проверка → эксперимент → обучение",12));
         LinearLayout row1=new LinearLayout(this);row1.setGravity(Gravity.CENTER);
         Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор");
         for(Button b:new Button[]{chatMode,memMode,srcMode,genMode})row1.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -236,7 +236,7 @@ public class MainActivity extends Activity {
         for(MemoryStore.Item x:items){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(6),dp(8),dp(6),dp(8));TextView h=tv(x.status+" • "+Math.round(x.confidence*100)+"% • v"+x.version,14);h.setTypeface(Typeface.DEFAULT,Typeface.BOLD);row.addView(h);row.addView(tv(x.text,15));row.addView(tv("Источник: "+x.source,11));if(!x.provenance.isEmpty())row.addView(tv("Provenance: "+x.provenance,11));if(!x.relation.isEmpty())row.addView(tv("Связь: "+x.relation,11));LinearLayout a=new LinearLayout(this);Button yes=btn("✓ Подтвердить"),no=btn("✕ Отклонить");a.addView(yes,new LinearLayout.LayoutParams(0,-2,1));a.addView(no,new LinearLayout.LayoutParams(0,-2,1));yes.setOnClickListener(v->{store.learn(x.id,true);refresh();});no.setOnClickListener(v->{store.learn(x.id,false);refresh();});row.addView(a);list.addView(row);}
     }
     void showSettings(){
-        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v1.4: локальный разговорный агент поверх накопленной памяти. Система не утверждает, что найденная закономерность истинна — она хранит состояние и сигнал проверки.",13));
+        content.removeAllViews();content.addView(tv("⚙ Настройки и пояснения",20));content.addView(tv("v3.8.2: локальный разговорный агент поверх накопленной памяти. Найденные закономерности остаются проверяемыми гипотезами, а не гарантированно истинными фактами.",13));
         content.addView(tv("🌐 Бесплатный веб-исследователь",17));
         content.addView(tv("Ищет публичные страницы без платного API и без API-ключа, извлекает тематические фрагменты и сохраняет отчёт со ссылками в истории контекста. Сайты могут ограничивать автоматические запросы; локальный обзор не является проверкой истины и не изменяет фактическую память.",12));
         

@@ -3,6 +3,21 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.vectoragent.phone'
     compileSdk 35
+    // Keep debug APK signing stable across clean GitHub Actions runners. This file is
+    // generated once per branch and reused from the branch-scoped Actions cache.
+    signingConfigs {
+        debug {
+            storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -14,8 +29,8 @@ android {
         applicationId 'com.vectoragent.phone'
         minSdk 26
         targetSdk 35
-        versionCode 380
-        versionName '3.8.0'
+        versionCode 382
+        versionName '3.8.2'
     }
 }
 
