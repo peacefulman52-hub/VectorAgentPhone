@@ -48,8 +48,12 @@ public class MentorExchangeStoreTest {
         String reply = "Наставник рекомендует сравнить три режима handoff на одинаковых задачах, фиксируя потери решений, повторы ошибок и время восстановления.";
 
         String status = MentorExchangeStore.importMentorReply(context, reply, false);
-        assertTrue(status.startsWith("Ответ сохранён"));
+        assertTrue(status.startsWith("Обработка завершена"));
+        assertTrue(status.contains("Отчёт: сохранён"));
+        assertTrue(status.contains("В обычные знания не добавлено"));
         assertTrue(MentorExchangeStore.latestReply(context).contains(reply));
+        assertTrue(read(MentorExchangeStore.file(context, "LATEST_MENTOR_ANALYSIS.md")).contains("локальный разбор"));
+        assertTrue(read(MentorExchangeStore.file(context, "replies/mentor-analysis-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date()) + ".md")).isEmpty() == false);
         assertTrue(read(MentorExchangeStore.file(context, "EVENTS.jsonl")).contains("MENTOR_REPLY_IMPORTED"));
         assertFalse(read(MentorExchangeStore.file(context, "VERIFIED_FACTS.md")).contains(reply));
         assertFalse(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains(reply));
