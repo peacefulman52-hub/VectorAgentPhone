@@ -24,6 +24,7 @@ public final class MentorExchangeStore {
     private static final String EVENTS = "EVENTS.jsonl";
     private static final String VERIFIED = "VERIFIED_FACTS.md";
     private static final String LATEST_REPLY = "LATEST_MENTOR_REPLY.md";
+    private static final String LATEST_ANALYSIS = "LATEST_MENTOR_ANALYSIS.md";
 
     private MentorExchangeStore() {}
 
@@ -89,43 +90,52 @@ public final class MentorExchangeStore {
         String text = reply == null ? "" : reply.trim();
         if (text.length() < 20) return "Ответ слишком короткий: вставь полный разбор наставника (не менее 20 символов).";
 
+        // Deterministic offline lexical triage; not semantic understanding or fact verification.
+        MentorReplyAnalyzer.Analysis analysis = MentorReplyAnalyzer.analyze(text);
         long now = System.currentTimeMillis();
         String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date(now));
         String content = "# Ответ наставника — " + stamp + "\n\n"
                 + "Статус: PRELIMINARY / НЕ ПРОВЕРЕНО. Источник: ручной обмен с ChatGPT.\n\n"
                 + "Важно: этот текст сам по себе не является независимым доказательством и не изменяет фактическую память.\n\n"
                 + text + "\n";
+        String analysisText = analysis.toMarkdown();
         File savedReply = new File(repliesDir(context), "mentor-reply-" + stamp + ".md");
-        if (!write(savedReply, content) || !write(file(context, LATEST_REPLY), content)) {
-            return "Не удалось сохранить ответ наставника в локальную память приложения.";
+        File savedAnalysis = new File(repliesDir(context), "mentor-analysis-" + stamp + ".md");
+        if (!write(savedReply, content) || !write(file(context, LATEST_REPLY), content)
+                || !write(savedAnalysis, analysisText) || !write(file(context, LATEST_ANALYSIS), analysisText)) {
+            return "Не удалось сохранить ответ и отчёт обработки в локальную память приложения.";
         }
 
-        // Keep a short searchable note in the research graph, explicitly marked as derived
-        // mentor feedback. No URLs are attributed to it, and factual MemoryStore is untouched.
-        String indexed = "ПРЕДВАРИТЕЛЬНАЯ ОБРАТНАЯ СВЯЗЬ НАСТАВНИКА (НЕ ФАКТ):\n"
-                + limit(text, 2600);
-        int added = ResearchKnowledgeStore.addPreliminaryConclusion(
-                context,
-                indexed,
-                "Обратная связь наставника",
-                "Критическая проверка последнего исследования Astra",
-                "Ручной ответ ChatGPT. Не является независимым источником; проверить конкретные утверждения и URL.",
-                new String[0],
-                0.15
-        );
-
+        // Do not index the full mentor message into ordinary research knowledge.
         if (userConfirmedDecision) {
             String decision = "\n\n## " + stamp + " — решение подтверждено пользователем\n"
-                    + "Рекомендация наставника сохранена как рабочее решение по явному подтверждению пользователя. "
-                    + "Это не делает содержащиеся в ней внешние фактические утверждения проверенными.\n\n"
+                    + "Пользователь отдельно подтвердил сохранение ответа наставника как рабочего решения. "
+                    + "Это не делает содержащиеся в нём внешние фактические утверждения проверенными.\n\n"
                     + limit(text, 1200) + "\n";
-            append(file(context, DECISIONS), decision);
+            if (!append(file(context, DECISIONS), decision)) {
+                return "Ответ и отчёт обработаны, но не удалось записать подтверждённое решение в DECISIONS.md.";
+            }
         }
 
-        updateCheckpoint(context, "Ответ наставника сохранён; факты не повышались до VERIFIED", InitiativeResearchAgenda.latestResultText(context));
-        appendEvent(context, "MENTOR_REPLY_IMPORTED", "Сохранён ответ наставника как предварительная заметка",
-                "file=" + savedReply.getName() + "; indexed=" + added + "; userConfirmedDecision=" + userConfirmedDecision);
-        return "Ответ сохранён локально как PRELIMINARY. В фактическую память он не добавлен; найдено предварительных записей для поиска: " + added + ".";
+        updateCheckpoint(context, "Ответ наставника сохранён и структурно разобран; факты не повышались до VERIFIED", InitiativeResearchAgenda.latestResultText(context));
+        appendEvent(context, "MENTOR_REPLY_ANALYZED", "Ответ сохранён отдельно; выполнена локальная классификация по ключевым словам",
+                "replyFile=" + savedReply.getName() + "; analysisFile=" + savedAnalysis.getName()
+                        + "; markers=" + analysis.markers.size()
+                        + "; recommendations=" + analysis.recommendations.size()
+                        + "; experiments=" + analysis.experiments.size()
+                        + "; doubts=" + analysis.doubts.size()
+                        + "; unclassified=" + analysis.unclassified.size()
+                        + "; indexedInOrdinaryKnowledge=false");
+        return "Обработка завершена (локальный разбор по ключевым словам, не ИИ-понимание).\n"
+                + "Оригинал: сохранён в mentor-memory/replies/" + savedReply.getName() + "\n"
+                + "Отчёт: сохранён в mentor-memory/replies/" + savedAnalysis.getName() + "\n"
+                + "Маркеры: " + analysis.markers.size()
+                + "; утверждения/наблюдения: " + analysis.claims.size()
+                + "; рекомендации: " + analysis.recommendations.size()
+                + "; сомнения: " + analysis.doubts.size()
+                + "; эксперименты/проверки: " + analysis.experiments.size()
+                + "; не классифицировано: " + analysis.unclassified.size() + ".\n"
+                + "В обычные знания не добавлено. VERIFIED_FACTS не изменён.";
     }
 
     public static synchronized String latestReply(Context context) {
