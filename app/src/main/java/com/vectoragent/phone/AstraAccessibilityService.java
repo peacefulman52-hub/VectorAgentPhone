@@ -126,7 +126,10 @@ public class AstraAccessibilityService extends AccessibilityService {
                 if (old != null) old.recycle();
                 root.recycle();
             }
-            if (overlay != null) overlay.show();
+            if (overlay != null) {
+                if (chatGptUrlVisible || chatGptBrowserActive) overlay.hide();
+                else overlay.show();
+            }
         } else if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             if (packageName.equals(getPackageName()) && ChatGPTBridgeStore.isMonitoringEnabled(this)) {
                 ChatGPTBridgeStore.finishSession(this);
@@ -142,7 +145,19 @@ public class AstraAccessibilityService extends AccessibilityService {
     }
 
     private void collectChatGPTVisibleText(AccessibilityNodeInfo node, List<String> out, int depth) {
-        if (node == null || depth > 40 || node.isEditable()) return;
+        if (node == null || depth > 40) return;
+        if (node.isEditable()) {
+            // The only editable field captured is Chrome's address bar when it visibly
+            // contains the ChatGPT origin. Message input fields are never collected.
+            CharSequence editableText = node.getText();
+            String address = editableText == null ? "" : editableText.toString().trim().toLowerCase(Locale.ROOT);
+            if ((address.startsWith("https://chatgpt.com") || address.startsWith("http://chatgpt.com")
+                    || address.startsWith("https://chat.openai.com") || address.startsWith("http://chat.openai.com"))
+                    && address.indexOf(' ') < 0) {
+                addChatGPTTextIfUnique(out, address);
+            }
+            return;
+        }
         int childTextCountBefore = out.size();
         int childCount = node.getChildCount();
         for (int i = 0; i < childCount; i++) {
