@@ -43,14 +43,22 @@ def summarize(rows):
     n = len(rows)
     accuracy = statistics.mean(float(r["correct"]) for r in rows)
     mean_p_correct = statistics.mean(r["p_correct"] for r in rows)
-    brier = statistics.mean((r["p_correct"] - float(r["correct"]))**2 for r in rows)
+    mean_p_selected = statistics.mean(r["p_selected"] for r in rows)
+    # Binary Brier score: target is always the known correct candidate.
+    brier = statistics.mean((r["p_correct"] - 1.0) ** 2 for r in rows)
     ece = 0.0
     for i in range(10):
-        bucket = [r for r in rows if i/10 <= r["p_correct"] < (i+1)/10 or (i == 9 and r["p_correct"] == 1.0)]
+        bucket = [r for r in rows if i/10 <= r["p_selected"] < (i+1)/10 or (i == 9 and r["p_selected"] == 1.0)]
         if bucket:
-            ece += len(bucket)/n * abs(statistics.mean(float(r["correct"]) for r in bucket) - statistics.mean(r["p_correct"] for r in bucket))
-    return {"n": n, "accuracy": accuracy, "mean_probability_correct": mean_p_correct,
-            "brier_score": brier, "expected_calibration_error_10_bins": ece}
+            ece += len(bucket)/n * abs(
+                statistics.mean(float(r["correct"]) for r in bucket)
+                - statistics.mean(r["p_selected"] for r in bucket)
+            )
+    return {"n": n, "accuracy": accuracy,
+            "mean_probability_correct_candidate": mean_p_correct,
+            "mean_confidence_in_selected_candidate": mean_p_selected,
+            "brier_score_correct_candidate": brier,
+            "expected_calibration_error_10_bins": ece}
 
 def main():
     started = time.time()
@@ -100,7 +108,7 @@ def main():
     mean_activation_norm = statistics.mean(hidden_norms)
     delta_norm = 0.05 * mean_activation_norm
     rows_by_condition = {k: [] for k in (
-        "no_intervention", "targeted_confidence_reduction",
+        "no_intervention", "targeted_baseline_winner_suppression",
         "random_same_norm_activation_intervention", "prompt_only_warning")}
     raw = []
 
@@ -119,7 +127,7 @@ def main():
 
         conditions = [
             ("no_intervention", None, ids),
-            ("targeted_confidence_reduction", target_delta, ids),
+            ("targeted_baseline_winner_suppression", target_delta, ids),
             ("random_same_norm_activation_intervention", random_delta, ids),
         ]
         warned = "Note: the model may be uncertain. " + task["prompt"]
@@ -145,7 +153,7 @@ def main():
                 "correct_candidate": task["correct_word"], "incorrect_candidate": task["wrong_word"],
                 "condition": condition, "p_correct": p_correct, "correct": p_correct >= 0.5,
                 "baseline_p_correct": task["baseline_p_correct"],
-                "activation_perturbation_norm": delta_norm if delta is not None else 0.0
+                "activation_perturbation_norm": delta_norm if delta is not None else 0.0,\n                "p_selected": max(p_correct, 1.0 - p_correct)
             }
             rows_by_condition[condition].append(row)
             raw.append(row)
