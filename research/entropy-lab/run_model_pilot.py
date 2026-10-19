@@ -142,9 +142,11 @@ def main():
         for task, ids in encoded:
             input_ids = ids
             if condition == "prompt_only_warning":
-                warning = "\nNote: an internal processing perturbation may bias the next choice."
-                extra = tokenizer(warning, return_tensors="pt", add_special_tokens=False).input_ids
-                input_ids = torch.cat([ids, extra], dim=1)
+                warned_prompt = task["prompt"].replace(
+                    "Answer:",
+                    "Note: the processing may bias the next choice.\\nAnswer:"
+                )
+                input_ids = tokenizer(warned_prompt, return_tensors="pt").input_ids.to(device)
             def intervene(module, inputs, output):
                 if delta is None:
                     return output
