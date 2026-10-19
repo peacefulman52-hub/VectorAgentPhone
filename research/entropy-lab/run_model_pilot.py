@@ -153,7 +153,8 @@ def main():
                 "correct_candidate": task["correct_word"], "incorrect_candidate": task["wrong_word"],
                 "condition": condition, "p_correct": p_correct, "correct": p_correct >= 0.5,
                 "baseline_p_correct": task["baseline_p_correct"],
-                "activation_perturbation_norm": delta_norm if delta is not None else 0.0,\n                "p_selected": max(p_correct, 1.0 - p_correct)
+                "activation_perturbation_norm": delta_norm if delta is not None else 0.0,
+                "p_selected": max(p_correct, 1.0 - p_correct)
             }
             rows_by_condition[condition].append(row)
             raw.append(row)
