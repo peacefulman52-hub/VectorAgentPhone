@@ -36,6 +36,8 @@ public class MainActivityCopyAnswerTest {
         Context app = RuntimeEnvironment.getApplication();
         app.getSharedPreferences("vector_context", Context.MODE_PRIVATE)
                 .edit().clear().commit();
+        app.getSharedPreferences("entropia_chatgpt_bridge", Context.MODE_PRIVATE)
+                .edit().clear().commit();
         controller = Robolectric.buildActivity(MainActivity.class).setup();
         activity = controller.get();
     }
