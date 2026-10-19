@@ -135,6 +135,16 @@ public final class MentorExchangeActivity extends Activity {
         });
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (latestReply != null) latestReply.setText(MentorExchangeStore.latestReply(this));
+        if (latestAnalysis != null) latestAnalysis.setText(MentorExchangeStore.latestAnalysis(this));
+        String imported = ChatGPTBridgeStore.getLatestImportedReply(this);
+        if (status != null && imported != null && !imported.trim().isEmpty()) {
+            status.setText("Ответ по кодовой фразе «пиши Энтропии» сохранён локально как PRELIMINARY. Факты автоматически не подтверждались.");
+        }
+    }
+
     private void sharePrompt() {
         String prompt = MentorExchangeStore.buildMentorPrompt(this);
         Intent send = new Intent(Intent.ACTION_SEND);
