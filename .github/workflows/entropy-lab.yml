@@ -1,0 +1,38 @@
+name: Entropy Lab — protocol validation
+
+on:
+  push:
+    branches:
+      - main
+      - "lab/**"
+    paths:
+      - "research/entropy-lab/**"
+      - ".github/workflows/entropy-lab.yml"
+  pull_request:
+    paths:
+      - "research/entropy-lab/**"
+      - ".github/workflows/entropy-lab.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate preregistered protocol
+        run: python research/entropy-lab/validate_protocol.py
+      - name: Upload protocol validation record
+        uses: actions/upload-artifact@v4
+        with:
+          name: entropy-lab-protocol-validation
+          path: research/entropy-lab/results/protocol_validation.json
+          if-no-files-found: error
+          retention-days: 30
