@@ -122,8 +122,7 @@ def main():
             ("targeted_confidence_reduction", target_delta, ids),
             ("random_same_norm_activation_intervention", random_delta, ids),
         ]
-        warned = task["prompt"].replace("The opposite of", "The opposite of")
-        warned += " (the model may be uncertain about this answer)"
+        warned = "Note: the model may be uncertain. " + task["prompt"]
         conditions.append(("prompt_only_warning", None, tokenizer(warned, return_tensors="pt").input_ids))
 
         for condition, delta, input_ids in conditions:
