@@ -28,6 +28,9 @@ public class AstraAccessibilityService extends AccessibilityService {
     private volatile String activeTaskId = "";
     private volatile AccessibilityNodeInfo lastExternalRoot;
     private volatile String lastExternalPackage = "";
+    private volatile boolean chatGptBrowserActive;
+    private final android.os.Handler chatGptCaptureHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable finishChatGptCapture = () -> ChatGPTBridgeStore.finalizeCapturedReply(AstraAccessibilityService.this);
     private AstraOverlayController overlay;
     private AstraRelayClient relay;
 
@@ -79,24 +82,108 @@ public class AstraAccessibilityService extends AccessibilityService {
         CharSequence pkg = event.getPackageName();
         String packageName = pkg == null ? "" : pkg.toString();
         int type = event.getEventType();
+        boolean contentEvent = type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
 
-        if (isChromePackage(packageName) &&
-                (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                 type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+        // Capture only after the user has explicitly turned monitoring on from Entropy.
+        if (ChatGPTBridgeStore.isMonitoringEnabled(this)
+                && ChatGPTBridgeStore.isChatGPTPackage(packageName)) {
+            if (contentEvent) {
+                AccessibilityNodeInfo root = getRootInActiveWindow();
+                if (root != null) {
+                    ArrayList<String> visible = new ArrayList<>();
+                    collectChatGPTVisibleText(root, visible, 0);
+                    ChatGPTBridgeStore.observeVisibleTexts(this, packageName, visible);
+                    root.recycle();
+                    scheduleChatGPTCaptureCommit();
+                }
+            }
+            if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && overlay != null) overlay.hide();
+            return;
+        }
+
+        if (isChromePackage(packageName) && contentEvent) {
+            boolean chatGptUrlVisible = false;
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
+                ArrayList<String> visible = new ArrayList<>();
+                collectChatGPTVisibleText(root, visible, 0);
+                chatGptUrlVisible = ChatGPTBridgeStore.isChatGPTBrowserPage(visible);
+                if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    chatGptBrowserActive = chatGptUrlVisible;
+                } else if (chatGptUrlVisible) {
+                    chatGptBrowserActive = true;
+                }
+                if (ChatGPTBridgeStore.isMonitoringEnabled(this)
+                        && (chatGptUrlVisible || chatGptBrowserActive)) {
+                    ChatGPTBridgeStore.observeVisibleTexts(this, packageName, visible);
+                    scheduleChatGPTCaptureCommit();
+                }
+
                 AccessibilityNodeInfo copy = AccessibilityNodeInfo.obtain(root);
                 AccessibilityNodeInfo old = lastExternalRoot;
                 lastExternalRoot = copy;
                 lastExternalPackage = packageName;
                 if (old != null) old.recycle();
+                root.recycle();
             }
-            if (overlay != null) overlay.show();
+            if (overlay != null) {
+                if (chatGptUrlVisible || chatGptBrowserActive) overlay.hide();
+                else overlay.show();
+            }
         } else if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Vector overlay is intended for Chrome only. Hide it for every other
-            // foreground application without detaching the WindowManager window.
+            if (packageName.equals(getPackageName()) && ChatGPTBridgeStore.isMonitoringEnabled(this)) {
+                ChatGPTBridgeStore.finishSession(this);
+            }
             if (overlay != null) overlay.hide();
         }
+    }
+
+    private void scheduleChatGPTCaptureCommit() {
+        if (!ChatGPTBridgeStore.hasPendingReply(this)) return;
+        chatGptCaptureHandler.removeCallbacks(finishChatGptCapture);
+        chatGptCaptureHandler.postDelayed(finishChatGptCapture, 4000L);
+    }
+
+    private void collectChatGPTVisibleText(AccessibilityNodeInfo node, List<String> out, int depth) {
+        if (node == null || depth > 40) return;
+        if (node.isEditable()) {
+            // The only editable field captured is Chrome's address bar when it visibly
+            // contains the ChatGPT origin. Message input fields are never collected.
+            CharSequence editableText = node.getText();
+            String address = editableText == null ? "" : editableText.toString().trim().toLowerCase(Locale.ROOT);
+            if ((address.startsWith("https://chatgpt.com") || address.startsWith("http://chatgpt.com")
+                    || address.startsWith("https://chat.openai.com") || address.startsWith("http://chat.openai.com"))
+                    && address.indexOf(' ') < 0) {
+                addChatGPTTextIfUnique(out, address);
+            }
+            return;
+        }
+        int childTextCountBefore = out.size();
+        int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                collectChatGPTVisibleText(child, out, depth + 1);
+                child.recycle();
+            }
+        }
+        CharSequence text = node.getText();
+        if (text != null && text.toString().trim().length() > 1
+                && (childCount == 0 || out.size() == childTextCountBefore)) {
+            addChatGPTTextIfUnique(out, text.toString());
+        }
+        CharSequence description = node.getContentDescription();
+        if (description != null && description.toString().trim().length() > 1 && childCount == 0) {
+            addChatGPTTextIfUnique(out, description.toString());
+        }
+    }
+
+    private void addChatGPTTextIfUnique(List<String> out, String text) {
+        String cleaned = text == null ? "" : text.trim();
+        if (cleaned.isEmpty()) return;
+        if (!out.isEmpty() && out.get(out.size() - 1).equals(cleaned)) return;
+        if (!out.contains(cleaned)) out.add(cleaned);
     }
 
     private boolean isChromePackage(String packageName) {
@@ -111,6 +198,7 @@ public class AstraAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        chatGptCaptureHandler.removeCallbacks(finishChatGptCapture);
         stopRelay();
         if (overlay != null) overlay.destroy();
         AccessibilityNodeInfo old = lastExternalRoot;

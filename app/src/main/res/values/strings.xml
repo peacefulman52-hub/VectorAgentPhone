@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Энтропия</string>
-    <string name="astra_accessibility_description">Энтропия читает доступные элементы активного окна и выполняет только явно запрошенные команды.</string>
+    <string name="astra_accessibility_description">Энтропия читает доступные элементы активного окна и выполняет только явно запрошенные команды. При ручном включении мониторинга ChatGPT видимый текст текущего чата сохраняется локально для переноса ответов в память.</string>
 </resources>
