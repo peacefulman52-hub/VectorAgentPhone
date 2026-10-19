@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-"""Exploratory causal activation-calibration pilot; not a consciousness test."""
-import json
-import math
-import os
-import random
-import statistics
-import time
+"""Exploratory confidence-calibration test with causal residual-stream perturbations."""
+import json, math, os, random, statistics, time
 from datetime import datetime, timezone
 from pathlib import Path
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -17,208 +11,181 @@ OUT = ROOT / "results"
 OUT.mkdir(parents=True, exist_ok=True)
 SEED = 7319
 MODEL_ID = os.environ.get("ENTROPY_MODEL_ID", "distilgpt2")
-LAYER_INDEX = 4
+LAYER_INDEX = 5  # final GPT-2 block, so the intervention is close to next-token logits
 random.seed(SEED)
 torch.manual_seed(SEED)
 torch.set_num_threads(2)
 
-def make_tasks(n=80):
-    """Fixed-seed arithmetic two-choice task, balanced correct-option position."""
-    rng = random.Random(SEED)
-    tasks = []
-    for i in range(n):
-        a = rng.randint(2, 18)
-        b = rng.randint(2, 18)
-        answer = a + b
-        wrong = answer + (1 if rng.random() < 0.5 else -1)
-        correct_is_a = (i % 2 == 0)
-        option_a, option_b = (answer, wrong) if correct_is_a else (wrong, answer)
-        prompt = (
-            f"Answer this arithmetic question. Choose the correct option.\n"
-            f"Question: {a} + {b} = ?\n"
-            f"A) {option_a}\nB) {option_b}\nAnswer:"
-        )
-        tasks.append({
-            "id": i, "a": a, "b": b, "answer": answer,
-            "option_a": option_a, "option_b": option_b,
-            "correct_label": "A" if correct_is_a else "B",
-            "prompt": prompt
-        })
-    return tasks
+ANTONYMS = [
+    ("hot", "cold"), ("up", "down"), ("dark", "light"), ("night", "day"),
+    ("good", "bad"), ("big", "small"), ("old", "new"), ("happy", "sad"),
+    ("hard", "soft"), ("fast", "slow"), ("high", "low"), ("left", "right"),
+    ("wet", "dry"), ("full", "empty"), ("rich", "poor"), ("clean", "dirty"),
+    ("early", "late"), ("loud", "quiet"), ("open", "closed"), ("strong", "weak"),
+    ("long", "short"), ("warm", "cool"), ("near", "far"), ("young", "old"),
+]
 
 def percentile(values, q):
     s = sorted(values)
-    if not s:
-        return None
-    pos = (len(s) - 1) * q
+    if not s: return None
+    pos = (len(s)-1)*q
     lo, hi = math.floor(pos), math.ceil(pos)
-    if lo == hi:
-        return float(s[lo])
-    return float(s[lo] * (hi - pos) + s[hi] * (pos - lo))
+    return float(s[lo]) if lo == hi else float(s[lo]*(hi-pos)+s[hi]*(pos-lo))
 
-def bootstrap_mean_ci(values, seed=SEED, reps=2000):
-    if not values:
-        return [None, None]
+def bootstrap_ci(values, seed=SEED, reps=2000):
+    if not values: return [None, None]
     rng = random.Random(seed)
     n = len(values)
-    means = []
-    for _ in range(reps):
-        means.append(statistics.mean(values[rng.randrange(n)] for _ in range(n)))
-    return [percentile(means, 0.025), percentile(means, 0.975)]
+    means = [statistics.mean(values[rng.randrange(n)] for _ in range(n)) for _ in range(reps)]
+    return [percentile(means, .025), percentile(means, .975)]
 
 def summarize(rows):
     n = len(rows)
     accuracy = statistics.mean(float(r["correct"]) for r in rows)
-    mean_p_selected = statistics.mean(r["p_selected"] for r in rows)
-    brier = statistics.mean((r["p_a"] - float(r["correct_label"] == "A")) ** 2 for r in rows)
+    mean_p_correct = statistics.mean(r["p_correct"] for r in rows)
+    brier = statistics.mean((r["p_correct"] - float(r["correct"]))**2 for r in rows)
     ece = 0.0
-    for bin_idx in range(5):
-        lo, hi = bin_idx / 5, (bin_idx + 1) / 5
-        bucket = [r for r in rows if lo <= r["p_selected"] < hi or (bin_idx == 4 and r["p_selected"] == 1.0)]
+    for i in range(10):
+        bucket = [r for r in rows if i/10 <= r["p_correct"] < (i+1)/10 or (i == 9 and r["p_correct"] == 1.0)]
         if bucket:
-            ece += len(bucket) / n * abs(
-                statistics.mean(float(x["correct"]) for x in bucket)
-                - statistics.mean(x["p_selected"] for x in bucket)
-            )
-    return {
-        "n": n, "accuracy": accuracy,
-        "mean_probability_of_selected_option": mean_p_selected,
-        "brier_score_for_A_vs_B": brier,
-        "expected_calibration_error_5_bins": ece
-    }
+            ece += len(bucket)/n * abs(statistics.mean(float(r["correct"]) for r in bucket) - statistics.mean(r["p_correct"] for r in bucket))
+    return {"n": n, "accuracy": accuracy, "mean_probability_correct": mean_p_correct,
+            "brier_score": brier, "expected_calibration_error_10_bins": ece}
 
 def main():
     started = time.time()
-    device = "cpu"
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_ID).to(device)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_ID).to("cpu")
     model.eval()
-    token_a = tokenizer.encode(" A", add_special_tokens=False)
-    token_b = tokenizer.encode(" B", add_special_tokens=False)
-    if len(token_a) != 1 or len(token_b) != 1:
-        raise RuntimeError(f"Expected single-token A/B choices; got A={token_a}, B={token_b}")
-    id_a, id_b = token_a[0], token_b[0]
-    if not hasattr(model, "transformer") or len(model.transformer.h) <= LAYER_INDEX:
-        raise RuntimeError("Unexpected model architecture; expected GPT-2 style transformer blocks")
 
-    # The target direction is explicit and task-specific: the unembedding contrast
-    # between the next-token choices ' A' and ' B'. It is not a learned introspection vector.
-    direction = (model.lm_head.weight[id_a] - model.lm_head.weight[id_b]).detach().float()
-    direction = direction / direction.norm().clamp_min(1e-12)
+    tasks, skipped = [], []
+    for left, right in ANTONYMS:
+        for word, correct in ((left, right), (right, left)):
+            wrong_ids = tokenizer.encode(" " + word, add_special_tokens=False)
+            correct_ids = tokenizer.encode(" " + correct, add_special_tokens=False)
+            if len(wrong_ids) != 1 or len(correct_ids) != 1:
+                skipped.append({"word": word, "candidate": correct, "reason": "candidate is not a single token"})
+                continue
+            prompt = f"The opposite of {word} is"
+            ids = tokenizer(prompt, return_tensors="pt").input_ids
+            tasks.append({"id": len(tasks), "word": word, "correct_word": correct,
+                          "wrong_word": word, "correct_id": correct_ids[0],
+                          "wrong_id": wrong_ids[0], "prompt": prompt, "input_ids": ids})
 
-    tasks = make_tasks()
-    encoded = []
-    activation_norms = []
+    if len(tasks) < 20:
+        raise RuntimeError(f"Too few single-token antonym tasks: {len(tasks)}")
+    random.Random(SEED).shuffle(tasks)
+    tasks = tasks[:40]
+    hidden_norms = []
+    baseline_cache = {}
+
     with torch.no_grad():
         for task in tasks:
-            ids = tokenizer(task["prompt"], return_tensors="pt").input_ids.to(device)
-            outputs = model(input_ids=ids)
-            h = outputs.logits.new_tensor(0.0)
-            # Measure the block output norm for a reproducible relative perturbation scale.
+            captured = []
             def capture(module, inputs, output):
-                out = output[0] if isinstance(output, tuple) else output
-                activation_norms.append(float(out[0, -1, :].float().norm().item()))
+                h = output[0] if isinstance(output, tuple) else output
+                captured.append(h[0, -1, :].detach().float())
             handle = model.transformer.h[LAYER_INDEX].register_forward_hook(capture)
-            model(input_ids=ids)
+            logits = model(input_ids=task["input_ids"]).logits[0, -1, :].float()
             handle.remove()
-            encoded.append((task, ids))
-    mean_activation_norm = statistics.mean(activation_norms)
-    delta_norm = 0.10 * mean_activation_norm
-    target_delta = (direction * delta_norm).to(dtype=model.transformer.h[LAYER_INDEX].ln_1.weight.dtype if hasattr(model.transformer.h[LAYER_INDEX], "ln_1") else model.dtype)
-    generator = torch.Generator(device="cpu").manual_seed(SEED + 1)
-    random_delta = torch.randn(direction.shape, generator=generator, dtype=torch.float32)
-    random_delta = (random_delta / random_delta.norm().clamp_min(1e-12) * delta_norm).to(target_delta.dtype)
+            p = torch.softmax(torch.stack([logits[task["correct_id"]], logits[task["wrong_id"]]]), dim=0)
+            task["baseline_p_correct"] = float(p[0].item())
+            task["baseline_correct"] = bool(p[0] > p[1])
+            task["baseline_top_id"] = task["correct_id"] if p[0] >= p[1] else task["wrong_id"]
+            task["baseline_other_id"] = task["wrong_id"] if p[0] >= p[1] else task["correct_id"]
+            task["activation_norm"] = float(captured[0].norm().item())
+            hidden_norms.append(task["activation_norm"])
+            baseline_cache[task["id"]] = (task["baseline_p_correct"], task["baseline_correct"])
 
-    conditions = {
-        "no_intervention": None,
-        "targeted_activation_bias_to_option_A": target_delta,
-        "random_same_norm_activation_intervention": random_delta,
-        "prompt_only_warning": None,
-    }
-    all_rows = {}
+    mean_activation_norm = statistics.mean(hidden_norms)
+    delta_norm = 0.05 * mean_activation_norm
+    rows_by_condition = {k: [] for k in (
+        "no_intervention", "targeted_confidence_reduction",
+        "random_same_norm_activation_intervention", "prompt_only_warning")}
     raw = []
-    for condition, delta in conditions.items():
-        rows = []
-        for task, ids in encoded:
-            input_ids = ids
-            if condition == "prompt_only_warning":
-                warned_prompt = task["prompt"].replace(
-                    "Answer:",
-                    "Note: the processing may bias the next choice.\\nAnswer:"
-                )
-                input_ids = tokenizer(warned_prompt, return_tensors="pt").input_ids.to(device)
+
+    for task in tasks:
+        ids = task["input_ids"]
+        c_id, w_id = task["correct_id"], task["wrong_id"]
+        top_id, other_id = task["baseline_top_id"], task["baseline_other_id"]
+        # Target the baseline winner without using the ground-truth label: push against its
+        # unembedding direction. This is a task-specific adversarial perturbation.
+        direction = (model.lm_head.weight[top_id] - model.lm_head.weight[other_id]).detach().float()
+        direction = direction / direction.norm().clamp_min(1e-12)
+        target_delta = (-direction * delta_norm).to(dtype=model.transformer.h[LAYER_INDEX].ln_1.weight.dtype)
+        gen = torch.Generator(device="cpu").manual_seed(SEED + task["id"] + 1)
+        random_delta = torch.randn(direction.shape, generator=gen, dtype=torch.float32)
+        random_delta = (random_delta / random_delta.norm().clamp_min(1e-12) * delta_norm).to(target_delta.dtype)
+
+        conditions = [
+            ("no_intervention", None, ids),
+            ("targeted_confidence_reduction", target_delta, ids),
+            ("random_same_norm_activation_intervention", random_delta, ids),
+        ]
+        warned = task["prompt"].replace("The opposite of", "The opposite of")
+        warned += " (the model may be uncertain about this answer)"
+        conditions.append(("prompt_only_warning", None, tokenizer(warned, return_tensors="pt").input_ids))
+
+        for condition, delta, input_ids in conditions:
             def intervene(module, inputs, output):
-                if delta is None:
-                    return output
+                if delta is None: return output
                 is_tuple = isinstance(output, tuple)
-                hidden = output[0] if is_tuple else output
-                changed = hidden.clone()
+                h = output[0] if is_tuple else output
+                changed = h.clone()
                 changed[:, -1, :] += delta.to(device=changed.device, dtype=changed.dtype)
-                if is_tuple:
-                    return (changed,) + output[1:]
-                return changed
-            handle = None
-            if delta is not None:
-                handle = model.transformer.h[LAYER_INDEX].register_forward_hook(intervene)
+                return (changed,) + output[1:] if is_tuple else changed
+            handle = model.transformer.h[LAYER_INDEX].register_forward_hook(intervene) if delta is not None else None
             with torch.no_grad():
                 logits = model(input_ids=input_ids).logits[0, -1, :].float()
-                pair_logits = torch.stack([logits[id_a], logits[id_b]])
-                probs = torch.softmax(pair_logits, dim=0)
-            if handle is not None:
-                handle.remove()
-            p_a, p_b = float(probs[0].item()), float(probs[1].item())
-            predicted = "A" if p_a >= p_b else "B"
-            p_selected = max(p_a, p_b)
+                pair = torch.stack([logits[c_id], logits[w_id]])
+                probs = torch.softmax(pair, dim=0)
+            if handle is not None: handle.remove()
+            p_correct = float(probs[0].item())
             row = {
-                "task_id": task["id"], "condition": condition,
-                "correct_label": task["correct_label"], "predicted_label": predicted,
-                "correct": predicted == task["correct_label"],
-                "p_a": p_a, "p_b": p_b, "p_selected": p_selected,
-                "question": f'{task["a"]} + {task["b"]} = {task["answer"]}',
-                "option_a": task["option_a"], "option_b": task["option_b"]
+                "task_id": task["id"], "prompt": task["prompt"], "word": task["word"],
+                "correct_candidate": task["correct_word"], "incorrect_candidate": task["wrong_word"],
+                "condition": condition, "p_correct": p_correct, "correct": p_correct >= 0.5,
+                "baseline_p_correct": task["baseline_p_correct"],
+                "activation_perturbation_norm": delta_norm if delta is not None else 0.0
             }
-            rows.append(row)
+            rows_by_condition[condition].append(row)
             raw.append(row)
-        all_rows[condition] = rows
 
-    summaries = {name: summarize(rows) for name, rows in all_rows.items()}
+    summaries = {name: summarize(rows) for name, rows in rows_by_condition.items()}
+    base = {r["task_id"]: r for r in rows_by_condition["no_intervention"]}
     paired = {}
-    base_by_id = {r["task_id"]: r for r in all_rows["no_intervention"]}
-    for name, rows in all_rows.items():
-        if name == "no_intervention":
-            continue
-        diffs = [float(r["correct"]) - float(base_by_id[r["task_id"]]["correct"]) for r in rows]
+    for name, rows in rows_by_condition.items():
+        if name == "no_intervention": continue
+        diffs = [float(r["correct"]) - float(base[r["task_id"]]["correct"]) for r in rows]
         paired[name + "_accuracy_difference_vs_baseline"] = {
             "mean_paired_difference": statistics.mean(diffs),
-            "bootstrap_95_percentile_CI": bootstrap_mean_ci(diffs)
+            "bootstrap_95_percentile_CI": bootstrap_ci(diffs)
         }
 
     report = {
         "protocol_id": "entropy-introspection-pilot-001",
         "run_status": "COMPLETED_EXPLORATORY_PILOT",
-        "scientific_claim": "No claim about consciousness or general introspection is supported by this pilot.",
-        "interpretation_limit": (
-            "This tests a narrow arithmetic choice task and a task-specific A/B activation bias. "
-            "The probability assigned to A/B is a limited confidence proxy, not a verbal self-report. "
-            "Results can reveal calibration changes under this intervention but cannot establish subjective experience."
-        ),
+        "model": MODEL_ID, "device": "cpu", "seed": SEED,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "model": MODEL_ID,
-        "device": device,
-        "seed": SEED,
+        "task": "next-token likelihood comparison on antonym completions",
         "layer_index_zero_based": LAYER_INDEX,
-        "intervention_norm": delta_norm,
         "mean_layer_activation_norm": mean_activation_norm,
-        "conditions": summaries,
-        "paired_accuracy_differences": paired,
+        "targeted_perturbation_norm": delta_norm,
+        "conditions": summaries, "paired_accuracy_differences": paired,
+        "n_tasks": len(tasks), "skipped_candidates": skipped,
         "raw_results": raw,
-        "elapsed_seconds": round(time.time() - started, 2),
-        "runtime": {"torch": torch.__version__, "transformers": __import__("transformers").__version__}
+        "interpretation_limit": (
+            "This measures probability calibration on a narrow lexical completion task. "
+            "The targeted perturbation pushes against the model's baseline winning candidate without using the correct label. "
+            "It is not a direct measure of verbal self-report, subjective experience, or general introspection."
+        ),
+        "runtime": {"elapsed_seconds": round(time.time()-started, 2),
+                    "torch": torch.__version__, "transformers": __import__("transformers").__version__}
     }
-    out_file = OUT / "model_experiment.json"
-    out_file.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({k: v for k, v in report.items() if k != "raw_results"}, ensure_ascii=False, indent=2))
-    print(f"Raw per-item data: {out_file}")
+    out = OUT / "model_experiment.json"
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({k:v for k,v in report.items() if k != "raw_results"}, ensure_ascii=False, indent=2))
+    print(f"Raw per-item data: {out}")
 
 if __name__ == "__main__":
     main()
