@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.content.Context;
+import android.content.Intent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -17,6 +18,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
+import org.robolectric.Shadows;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.RobolectricTestRunner;
@@ -75,6 +77,34 @@ public class MainActivityCopyAnswerTest {
         activity.copyLastAnswerButton.performClick();
         assertEquals(secondAnswer, clipboardText());
         assertEquals(1, countCopyButtons(activity.findViewById(android.R.id.content)));
+    }
+
+    @Test
+    public void brotherGptButtonOpensChatGPTAndEnablesLocalMonitoring() {
+        Button open = findButton(activity.findViewById(android.R.id.content), "Написать брату GPT");
+        assertNotNull("The main screen should expose the ChatGPT bridge button", open);
+        open.performClick();
+
+        assertTrue("Opening ChatGPT explicitly enables local monitoring",
+                ChatGPTBridgeStore.isMonitoringEnabled(activity));
+        Intent started = Shadows.shadowOf(RuntimeEnvironment.getApplication()).getNextStartedActivity();
+        assertNotNull("The button must open ChatGPT", started);
+        assertEquals(Intent.ACTION_VIEW, started.getAction());
+        assertEquals("https://chatgpt.com/", started.getDataString());
+    }
+
+    private Button findButton(View view, String text) {
+        if (view instanceof Button && ((Button) view).getText().toString().contains(text)) {
+            return (Button) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                Button found = findButton(group.getChildAt(i), text);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private String clipboardText() {
