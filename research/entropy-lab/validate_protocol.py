@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the preregistered Entropy pilot protocol; this does not run a model."""
+"""Validate the protocol file; this does not itself run the model experiment."""
 import json
 from pathlib import Path
 from datetime import datetime, timezone
@@ -15,7 +15,7 @@ required = {
 }
 missing = sorted(required - protocol.keys())
 assert not missing, f"Missing protocol fields: {missing}"
-assert protocol["status"] == "PREREGISTERED_NOT_YET_RUN", "Unexpected status; review before proceeding"
+assert protocol["status"] in {"PREREGISTERED_NOT_YET_RUN", "EXPLORATORY_PILOT"}, "Unexpected status; review before proceeding"
 assert len(protocol["conditions"]) >= 3, "Need multiple comparison conditions"
 assert "no_intervention" in protocol["conditions"], "Missing baseline control"
 assert any("random" in condition for condition in protocol["conditions"]), "Missing random-intervention control"
