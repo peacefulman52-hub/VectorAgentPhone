@@ -185,14 +185,21 @@ public final class ChatGPTBridgeStore {
         return false;
     }
 
+    private static boolean isTriggerLine(String value) {
+        // Require a command at the start of a message; assistant replies that merely
+        // mention the codeword in an explanation must not reset the capture.
+        String normalized = norm(value);
+        return normalized.equals(TRIGGER) || normalized.startsWith(TRIGGER + " ");
+    }
+
     private static int countTriggers(List<String> lines) {
         int n = 0;
-        for (String line : lines) if (norm(line).contains(TRIGGER)) n++;
+        for (String line : lines) if (isTriggerLine(line)) n++;
         return n;
     }
 
     private static int lastTrigger(List<String> lines) {
-        for (int i = lines.size() - 1; i >= 0; i--) if (norm(lines.get(i)).contains(TRIGGER)) return i;
+        for (int i = lines.size() - 1; i >= 0; i--) if (isTriggerLine(lines.get(i))) return i;
         return -1;
     }
 
