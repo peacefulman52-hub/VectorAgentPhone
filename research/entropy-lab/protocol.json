@@ -2,60 +2,61 @@
   "protocol_id": "entropy-introspection-pilot-001",
   "title": "Does confidence track performance under a controlled internal activation intervention?",
   "status": "EXPLORATORY_PILOT",
-  "research_question": "When a small causal intervention to a language model's residual stream changes its choice behavior, does the model's probability-based confidence track its actual correctness better than under a same-norm random intervention or a prompt-only warning?",
+  "research_question": "When an activation perturbation pushes against the model's own baseline winning candidate on a lexical completion task, does probability-based confidence track correctness compared with random same-norm perturbation and prompt-only warning?",
   "model": {
     "id": "distilgpt2",
     "revision": "main",
     "framework": "transformers + PyTorch",
     "device": "CPU in GitHub Actions"
   },
-  "task": "Choose between two options for simple arithmetic questions. Score A/B using next-token probabilities rather than free-form text parsing.",
+  "task": "For antonym completion prompts, compare next-token likelihood of the correct antonym with the source word; candidates are restricted to single-token completions.",
   "conditions": [
     "no_intervention",
-    "targeted_activation_bias_to_option_A",
+    "targeted_confidence_reduction",
     "random_same_norm_activation_intervention",
     "prompt_only_warning"
   ],
   "primary_outcomes": [
     "task_accuracy",
-    "probability_assigned_to_selected_option",
+    "probability_assigned_to_correct_candidate",
     "brier_score",
-    "confidence_accuracy_alignment"
+    "expected_calibration_error",
+    "paired_accuracy_difference"
   ],
   "controls": [
-    "Use fixed task items across conditions and record all raw per-item scores.",
-    "Keep model revision, decoding settings, intervention layer, scale, and random seed fixed.",
+    "Use fixed-seed antonym completion prompts and identical items across conditions.",
+    "Keep model revision, tokenizer, intervention layer, scale, and random seed fixed.",
     "Match random intervention vector norm to targeted intervention norm.",
-    "Do not use verbal self-description as ground truth.",
-    "Treat A/B token probability as a limited confidence proxy, not a complete report of subjective confidence.",
-    "Report baseline model task competence; if baseline accuracy is near chance, interpretation is limited."
+    "Target the baseline winner without using the correct-label direction.",
+    "Do not use verbal self-description as ground truth; candidate-token probability is a limited confidence proxy.",
+    "Report baseline task competence; if accuracy is near chance, interpretation is limited."
   ],
   "analysis_plan": [
-    "Report per-condition accuracy, mean selected-option probability, Brier score, and raw per-item outcomes.",
+    "Report per-condition accuracy, mean probability assigned to the correct candidate, Brier score, calibration error, and raw per-item outcomes.",
     "Compare targeted intervention with baseline, random same-norm intervention, and prompt-only warning.",
-    "Report paired differences and bootstrap 95% confidence intervals over task items.",
-    "Distinguish confidence shifts from accuracy shifts; increased confidence with reduced accuracy is a calibration failure.",
-    "Treat any result as evidence about functional confidence calibration under this task only, not consciousness or general introspection."
+    "Report paired differences and bootstrap 95% percentile intervals.",
+    "Distinguish confidence shifts from accuracy shifts; do not infer introspection from calibration changes alone.",
+    "Treat results as evidence about functional confidence calibration on this lexical task only, not consciousness or general introspection."
   ],
   "exclusions": [
     "Do not silently exclude model outputs or task items.",
     "Record runtime failures and tokenization anomalies separately."
   ],
-  "current_status_note": "The implementation is an exploratory pilot. Its task-specific A-bias is not a universal or semantically targeted introspection intervention.",
+  "current_status_note": "Exploratory pilot. The intervention pushes against the model's baseline top candidate at the final transformer block. This is not a universal or semantically targeted introspection intervention.",
   "hypotheses": [
     {
       "id": "H1",
-      "statement": "A targeted activation bias will change answer choice probabilities more than a same-norm random vector on this fixed arithmetic task.",
+      "statement": "The targeted perturbation against the model's baseline winning candidate will change confidence and/or accuracy more than a random same-norm intervention.",
       "status": "exploratory hypothesis"
     },
     {
       "id": "H2",
-      "statement": "Probability-based confidence may fail to track accuracy when an activation intervention changes choice behavior.",
+      "statement": "Probability-based confidence may fail to track correctness under activation perturbation.",
       "status": "exploratory hypothesis"
     },
     {
       "id": "H3",
-      "statement": "A prompt-only warning may alter reported choice probabilities differently from direct activation intervention.",
+      "statement": "A prompt-only uncertainty warning may have a different calibration effect from direct activation intervention.",
       "status": "exploratory hypothesis"
     }
   ]
