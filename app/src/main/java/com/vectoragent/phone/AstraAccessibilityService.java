@@ -103,11 +103,12 @@ public class AstraAccessibilityService extends AccessibilityService {
         }
 
         if (isChromePackage(packageName) && contentEvent) {
+            boolean chatGptUrlVisible = false;
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 ArrayList<String> visible = new ArrayList<>();
                 collectChatGPTVisibleText(root, visible, 0);
-                boolean chatGptUrlVisible = ChatGPTBridgeStore.isChatGPTBrowserPage(visible);
+                chatGptUrlVisible = ChatGPTBridgeStore.isChatGPTBrowserPage(visible);
                 if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                     chatGptBrowserActive = chatGptUrlVisible;
                 } else if (chatGptUrlVisible) {
