@@ -63,6 +63,7 @@ public final class ChatGPTBridgeStore {
         if (lines.isEmpty()) return;
         SharedPreferences p = prefs(c);
         ArrayList<String> previous = decode(p.getString(PREVIOUS_LINES, "[]"));
+        String previousSnapshot = p.getString(SNAPSHOT, "");
         String snapshot = join(lines, "\n");
         int triggerCount = countTriggers(lines);
         int oldTriggerCount = countTriggers(previous);
@@ -83,7 +84,7 @@ public final class ChatGPTBridgeStore {
                 if (!line.isEmpty() && !isUiLabel(line)) answer.add(line);
             }
             String reply = join(answer, "\n").trim();
-            if (reply.length() >= 20) {
+            if (reply.length() >= 20 && !reply.equals(p.getString(REPLY, ""))) {
                 edit.putString(REPLY, reply);
                 writeText(new File(storage(c), "LATEST_GPT_REPLY.md"),
                         "# Ответ GPT для Энтропии\n\nСтатус: PRELIMINARY; не проверенный факт.\n\n" + reply + "\n");
@@ -93,8 +94,10 @@ public final class ChatGPTBridgeStore {
                 .putString(PREVIOUS_LINES, new JSONArray(lines).toString())
                 .putString("latest_package", packageName == null ? "" : packageName)
                 .putLong("last_observed_at", System.currentTimeMillis()).apply();
-        writeText(new File(storage(c), "LATEST_CHATGPT_SCREEN.md"),
-                "# Видимый текст ChatGPT\n\nСтатус: PRELIMINARY; локальный фрагмент интерфейса.\n\n" + snapshot + "\n");
+        if (!snapshot.equals(previousSnapshot)) {
+            writeText(new File(storage(c), "LATEST_CHATGPT_SCREEN.md"),
+                    "# Видимый текст ChatGPT\n\nСтатус: PRELIMINARY; локальный фрагмент интерфейса.\n\n" + snapshot + "\n");
+        }
     }
 
     public static synchronized boolean hasPendingReply(Context c) {
