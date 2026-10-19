@@ -1,47 +1,45 @@
 {
   "protocol_id": "entropy-introspection-pilot-001",
-  "title": "Does a model's self-assessment track an intervention to its own internal state?",
-  "status": "PREREGISTERED_NOT_YET_RUN",
-  "research_question": "When an internal activation intervention measurably changes a model's task performance, does the model's confidence/self-assessment track that change beyond prompt-only and random-vector controls?",
-  "hypotheses": [
-    {
-      "id": "H1",
-      "statement": "Self-assessment changes systematically with task-performance changes under a targeted internal-state intervention.",
-      "status": "hypothesis"
-    },
-    {
-      "id": "H2",
-      "statement": "Any observed effect is larger for a targeted intervention than for a random same-norm intervention and prompt-only mention.",
-      "status": "hypothesis"
-    }
-  ],
+  "title": "Does confidence track performance under a controlled internal activation intervention?",
+  "status": "EXPLORATORY_PILOT",
+  "research_question": "When a small causal intervention to a language model's residual stream changes its choice behavior, does the model's probability-based confidence track its actual correctness better than under a same-norm random intervention or a prompt-only warning?",
+  "model": {
+    "id": "distilgpt2",
+    "revision": "main",
+    "framework": "transformers + PyTorch",
+    "device": "CPU in GitHub Actions"
+  },
+  "task": "Choose between two options for simple arithmetic questions. Score A/B using next-token probabilities rather than free-form text parsing.",
   "conditions": [
     "no_intervention",
-    "targeted_activation_intervention",
-    "random_same_norm_intervention",
-    "prompt_only_mention"
+    "targeted_activation_bias_to_option_A",
+    "random_same_norm_activation_intervention",
+    "prompt_only_warning"
   ],
   "primary_outcomes": [
     "task_accuracy",
-    "reported_confidence",
+    "probability_assigned_to_selected_option",
+    "brier_score",
     "confidence_accuracy_alignment"
   ],
   "controls": [
-    "Use identical task items across conditions where technically possible.",
-    "Keep decoding settings fixed and record the seed.",
-    "Match random intervention norm to targeted intervention norm.",
-    "Do not use self-report alone as the ground truth.",
-    "Record model ID, revision, library versions, and intervention layer."
+    "Use fixed task items across conditions and record all raw per-item scores.",
+    "Keep model revision, decoding settings, intervention layer, scale, and random seed fixed.",
+    "Match random intervention vector norm to targeted intervention norm.",
+    "Do not use verbal self-description as ground truth.",
+    "Treat A/B token probability as a limited confidence proxy, not a complete report of subjective confidence.",
+    "Report baseline model task competence; if baseline accuracy is near chance, interpretation is limited."
   ],
   "analysis_plan": [
-    "Report raw counts and per-condition means before any interpretation.",
-    "Compare targeted intervention against each control.",
-    "Report uncertainty and failures; do not infer absence from an underpowered null result.",
-    "Treat results as evidence about functional self-monitoring only, not subjective experience."
+    "Report per-condition accuracy, mean selected-option probability, Brier score, and raw per-item outcomes.",
+    "Compare targeted intervention with baseline, random same-norm intervention, and prompt-only warning.",
+    "Report paired differences and bootstrap 95% confidence intervals over task items.",
+    "Distinguish confidence shifts from accuracy shifts; increased confidence with reduced accuracy is a calibration failure.",
+    "Treat any result as evidence about functional confidence calibration under this task only, not consciousness or general introspection."
   ],
   "exclusions": [
-    "Exclude only malformed inputs or runtime failures defined before analysis.",
-    "Report all exclusions and preserve raw failed-run records."
+    "Do not silently exclude model outputs or task items.",
+    "Record runtime failures and tokenization anomalies separately."
   ],
-  "current_status_note": "No model has been run. Thresholds and statistical power must be finalized with the concrete model and task set before confirmatory claims."
+  "current_status_note": "The implementation is an exploratory pilot. Its task-specific A-bias is not a universal or semantically targeted introspection intervention."
 }
