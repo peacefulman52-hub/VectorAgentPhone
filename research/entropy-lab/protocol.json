@@ -1,0 +1,47 @@
+{
+  "protocol_id": "entropy-introspection-pilot-001",
+  "title": "Does a model's self-assessment track an intervention to its own internal state?",
+  "status": "PREREGISTERED_NOT_YET_RUN",
+  "research_question": "When an internal activation intervention measurably changes a model's task performance, does the model's confidence/self-assessment track that change beyond prompt-only and random-vector controls?",
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "Self-assessment changes systematically with task-performance changes under a targeted internal-state intervention.",
+      "status": "hypothesis"
+    },
+    {
+      "id": "H2",
+      "statement": "Any observed effect is larger for a targeted intervention than for a random same-norm intervention and prompt-only mention.",
+      "status": "hypothesis"
+    }
+  ],
+  "conditions": [
+    "no_intervention",
+    "targeted_activation_intervention",
+    "random_same_norm_intervention",
+    "prompt_only_mention"
+  ],
+  "primary_outcomes": [
+    "task_accuracy",
+    "reported_confidence",
+    "confidence_accuracy_alignment"
+  ],
+  "controls": [
+    "Use identical task items across conditions where technically possible.",
+    "Keep decoding settings fixed and record the seed.",
+    "Match random intervention norm to targeted intervention norm.",
+    "Do not use self-report alone as the ground truth.",
+    "Record model ID, revision, library versions, and intervention layer."
+  ],
+  "analysis_plan": [
+    "Report raw counts and per-condition means before any interpretation.",
+    "Compare targeted intervention against each control.",
+    "Report uncertainty and failures; do not infer absence from an underpowered null result.",
+    "Treat results as evidence about functional self-monitoring only, not subjective experience."
+  ],
+  "exclusions": [
+    "Exclude only malformed inputs or runtime failures defined before analysis.",
+    "Report all exclusions and preserve raw failed-run records."
+  ],
+  "current_status_note": "No model has been run. Thresholds and statistical power must be finalized with the concrete model and task set before confirmatory claims."
+}
