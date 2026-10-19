@@ -51,7 +51,7 @@ public class ChatGPTBridgeStoreTest {
         assertTrue(ChatGPTBridgeStore.getLatestSnapshot(context).contains(prompt));
         assertFalse(ChatGPTBridgeStore.hasPendingReply(context));
 
-        String answer = "Проверка связи успешна. Этот ответ сохранён локально как предварительный текст, а не как проверенный факт.";
+        String answer = "Проверка связи успешна. Кодовая фраза «пиши Энтропии» была принята; этот ответ сохранён локально как предварительный текст, а не как проверенный факт.";
         ChatGPTBridgeStore.observeVisibleTexts(context, "com.openai.chatgpt",
                 Arrays.asList("ChatGPT", prompt, answer, "Copy", "Share"));
 
