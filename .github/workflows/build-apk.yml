@@ -46,6 +46,24 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest
       - name: Build APK
         run: gradle --no-daemon assembleDebug
+      - name: Verify APK archive, package, and version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          SIZE="$(stat -c '%s' "$APK")"
+          echo "APK byte size: $SIZE"
+          if [ "$SIZE" -lt 500000 ]; then
+            echo "::error::APK is suspiciously small; refusing to upload an incomplete package"
+            exit 1
+          fi
+          unzip -t "$APK" | tail -n 1
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          AAPT="$(find "$SDK/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.vectoragent.phone' versionCode='383' versionName='3.8.3'"
       - name: Verify APK signing certificate matches cached debug key
         shell: bash
         run: |
@@ -69,11 +87,11 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Entropia-3.8.2-apk
+          name: Entropia-3.8.3-apk
           path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v3.8.2 app/build/outputs/apk/debug/app-debug.apk --title "Энтропия v3.8.2" --notes "Adds offline structural mentor-reply analysis, a visible report, and isolation from ordinary research knowledge." || true
+          gh release create v3.8.3 app/build/outputs/apk/debug/app-debug.apk --title "Энтропия v3.8.3" --notes "Adds an opt-in local ChatGPT bridge, codeword-based reply capture, preliminary memory storage, and APK integrity checks." || true
