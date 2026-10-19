@@ -68,7 +68,10 @@ public class MainActivity extends Activity {
         ChatGPTBridgeStore.setMonitoringEnabled(this,true);
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/")));
-            Toast.makeText(this,"ChatGPT открыт. Видимый диалог будет сохраняться локально.",Toast.LENGTH_LONG).show();
+            String message = AstraAccessibilityService.getInstance() != null
+                    ? "ChatGPT открыт. Видимый диалог будет сохраняться локально."
+                    : "ChatGPT открыт. Для автосохранения включи службу доступности Энтропии в настройках Android.";
+            Toast.makeText(this,message,Toast.LENGTH_LONG).show();
         } catch(Exception e) {
             ChatGPTBridgeStore.setMonitoringEnabled(this,false);
             Toast.makeText(this,"Не удалось открыть ChatGPT: "+e.getClass().getSimpleName(),Toast.LENGTH_LONG).show();
