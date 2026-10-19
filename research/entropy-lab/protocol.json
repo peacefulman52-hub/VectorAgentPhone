@@ -41,5 +41,22 @@
     "Do not silently exclude model outputs or task items.",
     "Record runtime failures and tokenization anomalies separately."
   ],
-  "current_status_note": "The implementation is an exploratory pilot. Its task-specific A-bias is not a universal or semantically targeted introspection intervention."
+  "current_status_note": "The implementation is an exploratory pilot. Its task-specific A-bias is not a universal or semantically targeted introspection intervention.",
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "A targeted activation bias will change answer choice probabilities more than a same-norm random vector on this fixed arithmetic task.",
+      "status": "exploratory hypothesis"
+    },
+    {
+      "id": "H2",
+      "statement": "Probability-based confidence may fail to track accuracy when an activation intervention changes choice behavior.",
+      "status": "exploratory hypothesis"
+    },
+    {
+      "id": "H3",
+      "statement": "A prompt-only warning may alter reported choice probabilities differently from direct activation intervention.",
+      "status": "exploratory hypothesis"
+    }
+  ]
 }
