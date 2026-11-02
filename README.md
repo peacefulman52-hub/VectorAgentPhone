@@ -97,3 +97,5 @@ CI trigger for Astra Bridge 3.3.3.
 - Preserves the raw response and observer notes; four manually scored axes cover content, decision style, causal linkage and uncertainty handling.
 - Evaluated trials are write-once to prevent silent post-hoc editing. The score is a user's observation, not an automated claim about consciousness or truth.
 - Adds Robolectric tests for rubric isolation, persistence, immutable evaluation and history order. No paid API or network access is used by this feature.
+
+- Trial creation timestamps are monotonic within the journal, so newest-first history stays deterministic even when two entries are created during the same millisecond.
