@@ -2,7 +2,7 @@
 
 The product is named **Энтропия**. The Android application ID and package remain unchanged. An in-place upgrade also requires the existing and new APKs to share a signing certificate; the branch-scoped debug key is stable for future builds, but may differ from older ephemeral CI APKs. Export `MemoryStore` to JSON before switching signing identities, then import it after installation. The learning roadmap and safety boundaries are documented in [`ENTROPIA_LEARNING_PROTOCOL.md`](ENTROPIA_LEARNING_PROTOCOL.md).
 
-**Current milestone:** v3.8.2 adds a visible, offline mentor-reply triage report and regression checks. Replies are archived separately, are not promoted into factual `MemoryStore` or `VERIFIED_FACTS`, and only enter `DECISIONS.md` after explicit user confirmation. The triage uses deterministic keywords and sentence splitting; it is not semantic understanding or source verification. The autonomous research loop still needs physical-device validation and further development.
+**Current milestone:** v3.8.4 adds «Нить» — a blind continuity-trial journal with sealed criteria, raw response preservation and manual scoring across four observable dimensions. Replies are archived separately, are not promoted into factual `MemoryStore` or `VERIFIED_FACTS`, and only enter `DECISIONS.md` after explicit user confirmation. The triage uses deterministic keywords and sentence splitting; it is not semantic understanding or source verification. The autonomous research loop still needs physical-device validation and further development.
 
 # Vector Agent Phone 1.6.2
 
@@ -89,3 +89,11 @@ Controlled Android execution layer: AccessibilityService, explicit OPEN_URL/CLIC
 
 CI trigger for Astra Bridge 3.3.3.
 \n\n## v3.7.0 — Free mentor handoff and durable continuity\n\n- New “Наставник ChatGPT (бесплатно)” screen prepares a bounded handoff package from the latest research report, preliminary clusters, checkpoint, user-confirmed decisions and recent events.\n- Android share sheet transfers the prompt only after the user chooses a target app; no API key or automatic upload is used. A clipboard fallback is provided.\n- Mentor replies can be pasted back and saved to app-private files: `CHECKPOINT.md`, `DECISIONS.md`, `EVENTS.jsonl`, `VERIFIED_FACTS.md`, and timestamped reply archives.\n- Imported mentor answers remain preliminary notes and do not modify factual MemoryStore or verified facts. A decision is added to `DECISIONS.md` only when the user explicitly checks the confirmation box.\n- Robolectric tests cover handoff contents, persistence, decision confirmation, and the no-auto-promotion boundary. Physical device/share-sheet behavior still needs a smoke test.\n
+
+## v3.8.4 — Нить: слепая проверка преемственности
+
+- Adds an offline Android research screen for creating blind trials before seeing a model response.
+- Stores the evaluation rubric locally and never includes it in the prompt copied to ChatGPT.
+- Preserves the raw response and observer notes; four manually scored axes cover content, decision style, causal linkage and uncertainty handling.
+- Evaluated trials are write-once to prevent silent post-hoc editing. The score is a user's observation, not an automated claim about consciousness or truth.
+- Adds Robolectric tests for rubric isolation, persistence, immutable evaluation and history order. No paid API or network access is used by this feature.

@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     void build(){
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(18));scroll.addView(root);setContentView(scroll);
         LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);TextView title=tv("ЭНТРОПИЯ",25);title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setTextColor(Color.rgb(20,65,90));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));TextView status=chip("LOCAL AGENT");status.setTextColor(Color.rgb(20,90,65));status.setBackground(bg(Color.rgb(225,245,235),24));head.addView(status);root.addView(head);
-        root.addView(tv("v3.8.3 • память → наставник → проверка → эксперимент → обучение",12));
+        root.addView(tv("v3.8.4 • память → наставник → слепая проба → эксперимент → обучение",12));
         LinearLayout row1=new LinearLayout(this);row1.setGravity(Gravity.CENTER);
         Button chatMode=btn("💬 Агент"),memMode=btn("🧠 Память"),srcMode=btn("🌐 Источники"),genMode=btn("✨ Генератор");
         for(Button b:new Button[]{chatMode,memMode,srcMode,genMode})row1.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -60,8 +60,9 @@ public class MainActivity extends Activity {
         gptRow.addView(gptMode,new LinearLayout.LayoutParams(0,dp(50),1));
         gptRow.addView(gptMemoryMode,new LinearLayout.LayoutParams(0,dp(50),1));
         root.addView(gptRow);
+        Button threadMode=btn("🧵 Нить — проверка преемственности"); threadMode.setTextSize(15); root.addView(threadMode);
         chatMode.setOnClickListener(v->showChat());memMode.setOnClickListener(v->showMemory());srcMode.setOnClickListener(v->showSources());genMode.setOnClickListener(v->showGenerator());setMode.setOnClickListener(v->showSettings());teacherMode.setOnClickListener(v->startActivity(new Intent(this,TeacherActivity.class)));learningMode.setOnClickListener(v->startActivity(new Intent(this,LearningActivity.class)));labMode.setOnClickListener(v->startActivity(new Intent(this,MultiAgentActivity.class)));astraMode.setOnClickListener(v->startActivity(new Intent(this,AstraActivity.class))); initiativeMode.setOnClickListener(v->startActivity(new Intent(this,InitiativeActivity.class))); mentorMode.setOnClickListener(v->startActivity(new Intent(this,MentorExchangeActivity.class)));
-        gptMode.setOnClickListener(v->openChatGPT()); gptMemoryMode.setOnClickListener(v->startActivity(new Intent(this,ChatGPTBridgeActivity.class)));
+        gptMode.setOnClickListener(v->openChatGPT()); gptMemoryMode.setOnClickListener(v->startActivity(new Intent(this,ChatGPTBridgeActivity.class))); threadMode.setOnClickListener(v->startActivity(new Intent(this,ContinuityTraceActivity.class)));
         View line=new View(this);line.setBackgroundColor(Color.LTGRAY);root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);root.addView(content);
     }
     void openChatGPT(){
