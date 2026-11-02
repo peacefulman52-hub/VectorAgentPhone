@@ -44,7 +44,12 @@ public final class ContinuityTraceStore {
         String id = UUID.randomUUID().toString();
         try {
             item.put("id", id);
-            item.put("createdAt", System.currentTimeMillis());
+            long createdAt = System.currentTimeMillis();
+            if (records.length() > 0) {
+                JSONObject last = records.optJSONObject(records.length() - 1);
+                if (last != null) createdAt = Math.max(createdAt, last.optLong("createdAt", 0L) + 1L);
+            }
+            item.put("createdAt", createdAt);
             item.put("question", q);
             item.put("privateRubric", rubric);
             item.put("stage", SEALED);
