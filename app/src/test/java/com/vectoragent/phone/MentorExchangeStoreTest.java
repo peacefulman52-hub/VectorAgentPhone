@@ -2,6 +2,7 @@ package com.vectoragent.phone;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -36,6 +37,7 @@ public class MentorExchangeStoreTest {
 
         String prompt = MentorExchangeStore.buildMentorPrompt(context);
         assertTrue(prompt.contains("Тест преемственности"));
+        assertTrue("Handoff should use the current Entropia name", prompt.contains("Энтропии"));
         assertTrue(prompt.contains("Не превращай свой ответ в факт"));
         assertTrue(prompt.contains("VERIFIED_FACTS"));
         assertTrue(MentorExchangeStore.file(context, "CHECKPOINT.md").isFile());
@@ -48,12 +50,34 @@ public class MentorExchangeStoreTest {
         String reply = "Наставник рекомендует сравнить три режима handoff на одинаковых задачах, фиксируя потери решений, повторы ошибок и время восстановления.";
 
         String status = MentorExchangeStore.importMentorReply(context, reply, false);
-        assertTrue(status.startsWith("Ответ сохранён"));
+        assertTrue(status.startsWith("Обработка завершена"));
+        assertTrue(status.contains("Отчёт: сохранён"));
+        assertTrue(status.contains("В обычные знания не добавлено"));
         assertTrue(MentorExchangeStore.latestReply(context).contains(reply));
-        assertTrue(read(MentorExchangeStore.file(context, "EVENTS.jsonl")).contains("MENTOR_REPLY_IMPORTED"));
+        assertTrue(read(MentorExchangeStore.file(context, "LATEST_MENTOR_ANALYSIS.md")).contains("Отчёт локальной обработки"));
+        assertTrue(read(MentorExchangeStore.file(context, "EVENTS.jsonl")).contains("MENTOR_REPLY_ANALYZED"));
         assertFalse(read(MentorExchangeStore.file(context, "VERIFIED_FACTS.md")).contains(reply));
         assertFalse(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains(reply));
         assertEquals(initialFacts, new MemoryStore(context).all().size());
+    }
+
+    @Test public void rapidMentorRepliesKeepSeparateArchiveFiles() {
+        String first = "Первый ответ наставника содержит достаточно длинный текст для отдельной архивной записи.";
+        String second = "Второй ответ наставника содержит другой текст для отдельной архивной записи.";
+        assertTrue(MentorExchangeStore.importMentorReply(context, first, false).startsWith("Обработка завершена"));
+        assertTrue(MentorExchangeStore.importMentorReply(context, second, false).startsWith("Обработка завершена"));
+
+        File archiveDir = new File(MentorExchangeStore.storageDir(context), "replies");
+        File[] originals = archiveDir.listFiles((dir, name) ->
+                name.startsWith("mentor-reply-") && name.endsWith(".md"));
+        File[] analyses = archiveDir.listFiles((dir, name) ->
+                name.startsWith("mentor-analysis-") && name.endsWith(".md"));
+        assertNotNull("Original reply archive should exist", originals);
+        assertNotNull("Analysis archive should exist", analyses);
+        assertEquals("Both mentor replies must keep separate original files", 2, originals.length);
+        assertEquals("Both mentor replies must keep separate analysis files", 2, analyses.length);
+        assertTrue("First reply must remain archived", anyFileContains(originals, first));
+        assertTrue("Second reply must remain archived", anyFileContains(originals, second));
     }
 
     @Test public void decisionLogChangesOnlyAfterExplicitUserConfirmation() {
@@ -61,6 +85,12 @@ public class MentorExchangeStoreTest {
         MentorExchangeStore.importMentorReply(context, reply, true);
         assertTrue(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains("подтверждено пользователем"));
         assertTrue(read(MentorExchangeStore.file(context, "DECISIONS.md")).contains(reply));
+    }
+
+    private static boolean anyFileContains(File[] files, String value) {
+        if (files == null) return false;
+        for (File file : files) if (read(file).contains(value)) return true;
+        return false;
     }
 
     private static String read(File file) {

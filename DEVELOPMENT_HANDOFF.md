@@ -1,6 +1,14 @@
 # Энтропия / VectorAgentPhone — Development Handoff
 Updated: 2026-10-14
 
+## 2026-10-14 — Entropia v3.8.2 mentor-review hardening
+
+- Mentor replies and their local triage reports are archived as separate files with collision-resistant millisecond timestamps; the latest copy of each is still kept for easy review.
+- The offline triage is deterministic keyword/sentence classification, not semantic understanding and not truth verification. Replies never mutate factual `MemoryStore` or `VERIFIED_FACTS.md` automatically; a decision is written only after explicit user confirmation.
+- The processing screen clears the input and refreshes the report on success; regression tests cover the report refresh, section classification, preservation of short numbered notes, explicit decision opt-in, and unchanged factual memory.
+- The build caches a debug-only signing key per feature branch and compares the APK's `apksigner` SHA-256 certificate fingerprint to the cached keystore. This is not a production release key.
+- CI success is necessary but not a physical-device smoke test. Export memory to JSON before changing signing identity; import it after reinstall if Android refuses an in-place upgrade.
+
 ## 2026-10-14 — Entropia v3.8.0 learning direction
 
 - Product-facing app label and main screen are renamed to «Энтропия»; internal Android package and AccessibilityService class names intentionally remain stable to preserve upgrade compatibility.
@@ -20,8 +28,8 @@ This file is the durable handoff for work that must survive conversation limits.
 ## Current state
 
 - Active repository: https://github.com/peacefulman52-hub/VectorAgentPhone
-- Active work: PR #16, "Astra 3.6.8 — free web research and one-tap answer copy"
-- PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/16
+- Active work: PR #24, "Entropia 3.8.2 — mentor reply analysis and stable CI signing"
+- PR URL: https://github.com/peacefulman52-hub/VectorAgentPhone/pull/24
 - Working branch: `agent/initiative-loop-1`
 - App version: `3.6.8`, `versionCode 368` so it can upgrade an installed `3.6.7` build. The v3.6.6 artifact listed below predates the copy-button change and must not be used to validate v3.6.8.
 - Code changes include compact search queries, provider fallback, a persistent source-attributed research store, a cautious extractive takeaway per successful report, basis links to source-observation IDs, and a UI panel showing topical clusters and confidence.

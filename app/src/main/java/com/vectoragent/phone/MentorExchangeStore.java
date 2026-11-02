@@ -13,7 +13,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Local, no-API-key handoff between Astra and a human-operated ChatGPT session.
+ * Local, no-API-key handoff between Entropia and a human-operated ChatGPT session.
  * Mentor replies are saved as review notes and preliminary conclusions only:
  * they are never written into factual MemoryStore or VERIFIED_FACTS.md automatically.
  */
@@ -24,6 +24,7 @@ public final class MentorExchangeStore {
     private static final String EVENTS = "EVENTS.jsonl";
     private static final String VERIFIED = "VERIFIED_FACTS.md";
     private static final String LATEST_REPLY = "LATEST_MENTOR_REPLY.md";
+    private static final String LATEST_ANALYSIS = "LATEST_MENTOR_ANALYSIS.md";
 
     private MentorExchangeStore() {}
 
@@ -60,17 +61,17 @@ public final class MentorExchangeStore {
         updateCheckpoint(context, "Пакет контекста подготовлен для ручной проверки наставником", latest);
 
         StringBuilder prompt = new StringBuilder();
-        prompt.append("ЗАДАЧА: ты выступаешь наставником и проверяющим для локального Android-агента Astra.\n")
+        prompt.append("ЗАДАЧА: ты выступаешь наставником и проверяющим для локального Android-агента Энтропии.\n")
                 .append("Это ручной обмен текстом; у тебя нет прямого доступа к приложению и ты не должен заявлять, что изменил его.\n")
                 .append("Проверь данные критически. Разделяй проверенные сведения, предварительные наблюдения, гипотезы и собственные предположения. ")
                 .append("Не считай совпадение страниц независимым подтверждением, если они могут копировать один источник. ")
                 .append("Не выдумывай открытые страницы, цитаты, ссылки или результаты тестов. ")
-                .append("Не превращай свой ответ в факт приложения: Astra сохранит его как предварительную заметку, пока пользователь отдельно не проверит выводы.\n\n")
+                .append("Не превращай свой ответ в факт приложения: Энтропия сохранит его как предварительную заметку, пока пользователь отдельно не проверит выводы.\n\n")
                 .append("ВЕРНИ ОТВЕТ В СТРУКТУРЕ:\n")
                 .append("1. Что в отчёте обосновано, а что пока не доказано.\n")
                 .append("2. Ошибки, противоречия и возможные зависимости источников.\n")
                 .append("3. Что нужно проверить по первоисточникам (с конкретными URL, если они известны).\n")
-                .append("4. Один ближайший эксперимент для Astra: действие, ожидаемый результат и критерий успеха/неуспеха.\n")
+                .append("4. Один ближайший эксперимент для Энтропии: действие, ожидаемый результат и критерий успеха/неуспеха.\n")
                 .append("5. Какие изменения памяти предложить: тип записи, краткое содержание, основание и статус проверки. Не предлагай автоматическую запись в VERIFIED_FACTS.\n\n")
                 .append("=== CHECKPOINT ===\n").append(readTail(file(context, CHECKPOINT), 2200))
                 .append("\n\n=== PREVIOUS DECISIONS (user-confirmed only) ===\n").append(readTail(file(context, DECISIONS), 1800))
@@ -89,43 +90,60 @@ public final class MentorExchangeStore {
         String text = reply == null ? "" : reply.trim();
         if (text.length() < 20) return "Ответ слишком короткий: вставь полный разбор наставника (не менее 20 символов).";
 
+        // Deterministic offline lexical triage; not semantic understanding or fact verification.
+        MentorReplyAnalyzer.Analysis analysis = MentorReplyAnalyzer.analyze(text);
         long now = System.currentTimeMillis();
-        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new Date(now));
+        String stampBase = new SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.ROOT).format(new Date(now));
+        String stamp = stampBase;
+        File archiveDir = repliesDir(context);
+        File savedReply = new File(archiveDir, "mentor-reply-" + stamp + ".md");
+        File savedAnalysis = new File(archiveDir, "mentor-analysis-" + stamp + ".md");
+        int collisionSuffix = 1;
+        while (savedReply.exists() || savedAnalysis.exists()) {
+            stamp = stampBase + "-" + collisionSuffix++;
+            savedReply = new File(archiveDir, "mentor-reply-" + stamp + ".md");
+            savedAnalysis = new File(archiveDir, "mentor-analysis-" + stamp + ".md");
+        }
         String content = "# Ответ наставника — " + stamp + "\n\n"
                 + "Статус: PRELIMINARY / НЕ ПРОВЕРЕНО. Источник: ручной обмен с ChatGPT.\n\n"
                 + "Важно: этот текст сам по себе не является независимым доказательством и не изменяет фактическую память.\n\n"
                 + text + "\n";
-        File savedReply = new File(repliesDir(context), "mentor-reply-" + stamp + ".md");
-        if (!write(savedReply, content) || !write(file(context, LATEST_REPLY), content)) {
-            return "Не удалось сохранить ответ наставника в локальную память приложения.";
+        String analysisText = analysis.toMarkdown();
+        if (!write(savedReply, content) || !write(file(context, LATEST_REPLY), content)
+                || !write(savedAnalysis, analysisText) || !write(file(context, LATEST_ANALYSIS), analysisText)) {
+            return "Не удалось сохранить ответ и отчёт обработки в локальную память приложения.";
         }
 
-        // Keep a short searchable note in the research graph, explicitly marked as derived
-        // mentor feedback. No URLs are attributed to it, and factual MemoryStore is untouched.
-        String indexed = "ПРЕДВАРИТЕЛЬНАЯ ОБРАТНАЯ СВЯЗЬ НАСТАВНИКА (НЕ ФАКТ):\n"
-                + limit(text, 2600);
-        int added = ResearchKnowledgeStore.addPreliminaryConclusion(
-                context,
-                indexed,
-                "Обратная связь наставника",
-                "Критическая проверка последнего исследования Astra",
-                "Ручной ответ ChatGPT. Не является независимым источником; проверить конкретные утверждения и URL.",
-                new String[0],
-                0.15
-        );
-
+        // Do not index the full mentor message into ordinary research knowledge.
         if (userConfirmedDecision) {
             String decision = "\n\n## " + stamp + " — решение подтверждено пользователем\n"
-                    + "Рекомендация наставника сохранена как рабочее решение по явному подтверждению пользователя. "
-                    + "Это не делает содержащиеся в ней внешние фактические утверждения проверенными.\n\n"
+                    + "Пользователь отдельно подтвердил сохранение ответа наставника как рабочего решения. "
+                    + "Это не делает содержащиеся в нём внешние фактические утверждения проверенными.\n\n"
                     + limit(text, 1200) + "\n";
-            append(file(context, DECISIONS), decision);
+            if (!append(file(context, DECISIONS), decision)) {
+                return "Ответ и отчёт обработаны, но не удалось записать подтверждённое решение в DECISIONS.md.";
+            }
         }
 
-        updateCheckpoint(context, "Ответ наставника сохранён; факты не повышались до VERIFIED", InitiativeResearchAgenda.latestResultText(context));
-        appendEvent(context, "MENTOR_REPLY_IMPORTED", "Сохранён ответ наставника как предварительная заметка",
-                "file=" + savedReply.getName() + "; indexed=" + added + "; userConfirmedDecision=" + userConfirmedDecision);
-        return "Ответ сохранён локально как PRELIMINARY. В фактическую память он не добавлен; найдено предварительных записей для поиска: " + added + ".";
+        updateCheckpoint(context, "Ответ наставника сохранён и структурно разобран; факты не повышались до VERIFIED", InitiativeResearchAgenda.latestResultText(context));
+        appendEvent(context, "MENTOR_REPLY_ANALYZED", "Ответ сохранён отдельно; выполнена локальная классификация по ключевым словам",
+                "replyFile=" + savedReply.getName() + "; analysisFile=" + savedAnalysis.getName()
+                        + "; markers=" + analysis.markers.size()
+                        + "; recommendations=" + analysis.recommendations.size()
+                        + "; experiments=" + analysis.experiments.size()
+                        + "; doubts=" + analysis.doubts.size()
+                        + "; unclassified=" + analysis.unclassified.size()
+                        + "; indexedInOrdinaryKnowledge=false");
+        return "Обработка завершена (локальный разбор по ключевым словам, не ИИ-понимание).\n"
+                + "Оригинал: сохранён в mentor-memory/replies/" + savedReply.getName() + "\n"
+                + "Отчёт: сохранён в mentor-memory/replies/" + savedAnalysis.getName() + "\n"
+                + "Маркеры: " + analysis.markers.size()
+                + "; утверждения/наблюдения: " + analysis.claims.size()
+                + "; рекомендации: " + analysis.recommendations.size()
+                + "; сомнения: " + analysis.doubts.size()
+                + "; эксперименты/проверки: " + analysis.experiments.size()
+                + "; не классифицировано: " + analysis.unclassified.size() + ".\n"
+                + "В обычные знания не добавлено. VERIFIED_FACTS не изменён.";
     }
 
     public static synchronized String latestReply(Context context) {
@@ -134,12 +152,18 @@ public final class MentorExchangeStore {
         return value.isEmpty() ? "Ответ наставника ещё не сохранялся." : value;
     }
 
+    public static synchronized String latestAnalysis(Context context) {
+        ensureFiles(context);
+        String value = read(file(context, LATEST_ANALYSIS));
+        return value.isEmpty() ? "Отчёта обработки пока нет. Вставь ответ и нажми «Обработать ответ наставника»." : value;
+    }
+
     private static void updateCheckpoint(Context context, String status, String report) {
         String first = report == null ? "" : report.split("\\n", 2)[0].trim();
         String text = "# CHECKPOINT.md\n\n"
                 + "Updated: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.ROOT).format(new Date()) + "\n\n"
                 + "## Current goal\n"
-                + "Создать проверяемый бесплатный цикл обучения Astra через ручной обмен с наставником без платного API.\n\n"
+                + "Создать проверяемый бесплатный цикл обучения Энтропии через ручной обмен с наставником без платного API.\n\n"
                 + "## Current state\n- " + status + "\n"
                 + "- Последний отчёт: " + (first.isEmpty() ? "пока нет" : first) + "\n"
                 + "- Ответы наставника сохраняются в mentor-memory/replies и индексируются только как PRELIMINARY.\n"
